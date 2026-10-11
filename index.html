@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Testspec-Manager · C-Code · Traceability · Excel</title>
+<style>
+  :root{
+    --bg:#FAFAF7;--surface:#FFFFFF;--surface-2:#F4F4F0;--border:#E4E4DD;--border-strong:#D2D2C9;
+    --ink:#1C1F24;--muted:#63676F;--faint:#9A9EA6;
+    --accent:#0B6E7A;--accent-ink:#06525B;--accent-soft:#E2F1F2;
+    --pass:#2F9E44;--pass-soft:#E7F5EA;--fail:#E03131;--fail-soft:#FDECEC;
+    --blocked:#E8870B;--blocked-soft:#FCF1E1;--notrun:#7A7F88;--notrun-soft:#EDEDEA;
+    --ai:#6B3FB0;--ai-soft:#F3EEFB;--ai-bd:#DDCBF3;
+    --radius:8px;--mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,"Segoe UI",Roboto,Inter,system-ui,sans-serif;
+    --shadow:0 1px 2px rgba(28,31,36,.06),0 4px 16px rgba(28,31,36,.05);
+  }
+  *{box-sizing:border-box} html,body{margin:0;height:100%}
+  body{font-family:var(--sans);background:var(--bg);color:var(--ink);font-size:14px;line-height:1.45;
+    -webkit-font-smoothing:antialiased;display:flex;flex-direction:column;height:100vh;overflow:hidden}
+  header.app{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 18px;background:var(--surface);border-bottom:1px solid var(--border)}
+  .brand{display:flex;align-items:baseline;gap:9px;margin-right:6px}
+  .brand b{font-size:15px;letter-spacing:-.2px}
+  .brand small{color:var(--faint);font-family:var(--mono);font-size:11px}
+  .proj-name{font-family:var(--mono);font-size:12px;color:var(--accent-ink);background:var(--accent-soft);
+    padding:3px 9px;border-radius:20px;border:1px solid #C9E6E8;max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .spacer{flex:1}
+  .bar-actions{display:flex;gap:6px;flex-wrap:wrap}
+  button{font-family:var(--sans);font-size:13px;cursor:pointer}
+  .btn{border:1px solid var(--border-strong);background:var(--surface);color:var(--ink);padding:6px 11px;border-radius:6px;
+    display:inline-flex;align-items:center;gap:6px;transition:background .12s,border-color .12s;white-space:nowrap}
+  .btn:hover{background:var(--surface-2)} .btn:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff} .btn.primary:hover{background:var(--accent-ink)}
+  .btn.ai{background:var(--ai);border-color:var(--ai);color:#fff} .btn.ai:hover{filter:brightness(.92)}
+  .btn.ghost{border-color:transparent;background:transparent} .btn.ghost:hover{background:var(--surface-2)}
+  .btn.danger:hover{background:var(--fail-soft);border-color:var(--fail);color:var(--fail)}
+  .btn small{font-family:var(--mono);font-size:10px;color:var(--faint)}
+  .btn.ai small{color:#E7DCFA}
+  nav.tabs{display:flex;gap:2px;padding:0 14px;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto}
+  .tab{border:none;background:transparent;padding:11px 15px 10px;color:var(--muted);font-size:13px;font-weight:500;
+    border-bottom:2px solid transparent;display:flex;align-items:center;gap:7px;white-space:nowrap}
+  .tab:hover{color:var(--ink)} .tab.active{color:var(--accent-ink);border-bottom-color:var(--accent)}
+  .tab .count{font-family:var(--mono);font-size:11px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:0 6px;color:var(--muted)}
+  .tab.active .count{background:var(--accent-soft);border-color:#C9E6E8;color:var(--accent-ink)}
+  main{flex:1;overflow:auto;padding:18px}
+  .view{max-width:1320px;margin:0 auto}
+  .view-head{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+  .view-head h2{font-size:16px;margin:0;font-weight:600;letter-spacing:-.2px}
+  .view-head .sub{color:var(--muted);font-size:12.5px}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  input[type=text],input[type=search],input[type=password],select,textarea{font-family:var(--sans);font-size:13px;color:var(--ink);
+    background:var(--surface);border:1px solid var(--border-strong);border-radius:6px;padding:6px 9px}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:var(--accent)}
+  .search{min-width:200px;flex:1;max-width:320px} select{cursor:pointer}
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  thead th{text-align:left;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);
+    background:var(--surface-2);padding:9px 12px;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:1}
+  tbody td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr.clickable{cursor:pointer} tbody tr.clickable:hover{background:var(--accent-soft)}
+  .id-cell{font-family:var(--mono);font-size:12px;color:var(--accent-ink);white-space:nowrap;font-weight:500}
+  .ttl{font-weight:500}
+  .row-actions{display:flex;gap:4px;justify-content:flex-end}
+  .icon-btn{border:1px solid transparent;background:transparent;padding:4px 7px;border-radius:5px;color:var(--muted);font-size:12px}
+  .icon-btn:hover{background:var(--surface-2);color:var(--ink)} .icon-btn.del:hover{background:var(--fail-soft);color:var(--fail)}
+  .chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;padding:2px 8px;border-radius:20px;
+    border:1px solid var(--border-strong);background:var(--surface-2);font-family:var(--mono);white-space:nowrap}
+  .chip.req{color:var(--accent-ink);background:var(--accent-soft);border-color:#C9E6E8}
+  .chip.empty{color:var(--faint);font-family:var(--sans);font-style:italic;background:transparent;border-style:dashed}
+  .chips{display:flex;flex-wrap:wrap;gap:5px;max-width:340px}
+  .dot{width:8px;height:8px;border-radius:50%;flex:none}
+  .status{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;padding:2px 9px 2px 8px;border-radius:20px;white-space:nowrap}
+  .s-Pass{background:var(--pass-soft);color:#1B6B2B} .s-Pass .dot{background:var(--pass)}
+  .s-Fail{background:var(--fail-soft);color:#B01F1F} .s-Fail .dot{background:var(--fail)}
+  .s-Blocked{background:var(--blocked-soft);color:#9A5A03} .s-Blocked .dot{background:var(--blocked)}
+  .s-NotRun{background:var(--notrun-soft);color:#4D525B} .s-NotRun .dot{background:var(--notrun)}
+  .s-None{background:transparent;color:var(--faint);border:1px dashed var(--border-strong)} .s-None .dot{background:var(--faint)}
+  .badge{font-size:10.5px;font-family:var(--mono);padding:1px 6px;border-radius:5px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--muted)}
+  .badge.skel{background:#EEF6FF;border-color:#CBE2FB;color:#1C5FA8}
+  .badge.ai{background:var(--ai-soft);border-color:var(--ai-bd);color:var(--ai)}
+  .badge.br{background:var(--blocked-soft);border-color:#F0D9AE;color:#9A5A03}
+  .sig{font-family:var(--mono);font-size:11.5px;color:var(--ink);background:var(--surface-2);border:1px solid var(--border);
+    border-radius:5px;padding:2px 7px;display:inline-block;max-width:380px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:12px;margin-bottom:16px}
+  .kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow)}
+  .kpi .label{font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:600}
+  .kpi .val{font-size:28px;font-weight:650;letter-spacing:-.5px;margin-top:4px;font-variant-numeric:tabular-nums}
+  .kpi .val small{font-size:14px;color:var(--muted);font-weight:500}
+  .kpi.alert .val{color:var(--blocked)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px} @media(max-width:860px){.grid2{grid-template-columns:1fr}}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+  .card h3{margin:0;padding:13px 16px;font-size:13px;border-bottom:1px solid var(--border);background:var(--surface-2);font-weight:600}
+  .card .body{padding:14px 16px}
+  .cov-track{height:14px;border-radius:7px;background:var(--surface-2);overflow:hidden;display:flex;border:1px solid var(--border)}
+  .cov-track > span{display:block;height:100%}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12px;color:var(--muted)}
+  .legend i{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:-1px}
+  .gap-list{max-height:260px;overflow:auto}
+  .gap-row{display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid var(--border);cursor:pointer}
+  .gap-row:hover{background:var(--accent-soft)} .gap-row:last-child{border-bottom:none}
+  .findings{display:flex;flex-direction:column;gap:6px;padding:14px 16px;max-height:300px;overflow:auto}
+  .finding{display:flex;gap:9px;align-items:flex-start;padding:8px 11px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:12.5px}
+  .finding .lv{font-size:9.5px;font-family:var(--mono);text-transform:uppercase;padding:2px 6px;border-radius:4px;margin-top:1px;white-space:nowrap}
+  .finding.warn .lv{background:var(--blocked-soft);color:#9A5A03}
+  .finding.info .lv{background:var(--accent-soft);color:var(--accent-ink)}
+  .finding.err .lv{background:var(--fail-soft);color:#B01F1F}
+  .code-prev{font-family:var(--mono);font-size:11.5px;background:#1C1F24;color:#E6E6E6;border-radius:8px;padding:12px 14px;
+    overflow:auto;max-height:340px;line-height:1.55;white-space:pre}
+  .code-prev .ln{color:#6B7079;display:inline-block;width:32px;user-select:none;text-align:right;margin-right:12px}
+  .ai-bar{display:flex;align-items:center;gap:10px;background:var(--ai-soft);border:1px solid var(--ai-bd);border-radius:8px;
+    padding:9px 13px;font-size:12.5px;color:#5A3596;margin-bottom:12px}
+  .ai-bar .badge{background:#fff}
+  .matrix-wrap{overflow:auto;max-height:calc(100vh - 250px);border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow)}
+  table.matrix{border-collapse:separate;border-spacing:0;font-size:12px}
+  table.matrix th.corner{position:sticky;left:0;top:0;z-index:5;background:var(--surface-2);min-width:230px;max-width:300px}
+  table.matrix thead th.tc{position:sticky;top:0;z-index:3;background:var(--surface-2);height:130px;padding:0;min-width:34px;width:34px;border-left:1px solid var(--border)}
+  table.matrix thead th.tc .rot{transform:rotate(180deg);writing-mode:vertical-rl;white-space:nowrap;font-family:var(--mono);font-size:11px;font-weight:500;color:var(--ink);padding:8px 0;display:inline-block;max-height:118px;overflow:hidden}
+  table.matrix tbody th.req{position:sticky;left:0;z-index:2;background:var(--surface);text-align:left;font-weight:500;padding:7px 12px;border-bottom:1px solid var(--border);border-right:1px solid var(--border);min-width:230px;max-width:300px}
+  table.matrix tbody th.req .rid{font-family:var(--mono);font-size:11px;color:var(--accent-ink);display:block}
+  table.matrix tbody th.req .rtt{font-size:11.5px;color:var(--muted);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:270px}
+  table.matrix td.cell{text-align:center;border-bottom:1px solid var(--border);border-left:1px solid var(--border);height:32px}
+  table.matrix td.cell .mk{width:15px;height:15px;border-radius:4px;display:inline-block}
+  table.matrix tbody tr:hover th.req{background:var(--accent-soft)}
+  table.matrix tbody tr.uncov th.req .rid{color:var(--blocked)}
+  .overlay{position:fixed;inset:0;background:rgba(28,31,36,.42);display:none;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:50;overflow:auto}
+  .overlay.open{display:flex}
+  .modal{background:var(--surface);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.25);width:100%;max-width:680px;animation:pop .14s ease}
+  @keyframes pop{from{transform:translateY(8px);opacity:.6}to{transform:none;opacity:1}}
+  .modal header{display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--border)}
+  .modal header h3{margin:0;font-size:15px}
+  .modal .content{padding:18px 20px;display:flex;flex-direction:column;gap:14px;max-height:68vh;overflow:auto}
+  .modal footer{display:flex;justify-content:space-between;gap:10px;padding:14px 20px;border-top:1px solid var(--border);flex-wrap:wrap}
+  .field{display:flex;flex-direction:column;gap:5px}
+  .field label{font-size:12px;font-weight:600;color:var(--muted)}
+  .field input,.field select,.field textarea{width:100%}
+  .field textarea{resize:vertical;min-height:54px}
+  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .req-picker{border:1px solid var(--border-strong);border-radius:6px}
+  .req-picker .pk-search{padding:8px;border-bottom:1px solid var(--border)}
+  .req-picker .pk-list{max-height:170px;overflow:auto}
+  .pk-item{display:flex;align-items:center;gap:9px;padding:7px 10px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12.5px}
+  .pk-item:last-child{border-bottom:none} .pk-item:hover{background:var(--surface-2)} .pk-item input{width:auto}
+  .pk-item .pid{font-family:var(--mono);font-size:11px;color:var(--accent-ink);min-width:74px}
+  .sel-chips{display:flex;flex-wrap:wrap;gap:5px;min-height:4px}
+  .sel-chips .chip{cursor:pointer} .sel-chips .chip:hover{background:var(--fail-soft);color:var(--fail);border-color:var(--fail)}
+  .empty{text-align:center;padding:50px 20px;color:var(--muted)}
+  .empty h3{color:var(--ink);margin:0 0 6px;font-size:16px}
+  .empty p{margin:0 auto 16px;max-width:460px} .empty .actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+  #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;
+    padding:10px 18px;border-radius:8px;font-size:13px;opacity:0;transition:.2s;pointer-events:none;z-index:80;box-shadow:0 8px 24px rgba(0,0,0,.3);max-width:90vw}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .hint{font-size:12px;color:var(--muted);background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:9px 12px;line-height:1.5}
+  code{font-family:var(--mono);font-size:11.5px;background:var(--surface-2);padding:1px 5px;border-radius:4px;border:1px solid var(--border)}
+  .footbar{display:flex;gap:16px;align-items:center;padding:7px 18px;border-top:1px solid var(--border);background:var(--surface);font-size:11.5px;color:var(--muted);font-family:var(--mono)}
+  @media print{header.app,nav.tabs,.toolbar,.row-actions,.footbar,.bar-actions{display:none!important}main{overflow:visible}}
+</style>
+</head>
+<body>
+<header class="app">
+  <div class="brand"><b>Testspec-Manager</b><small>v2.0</small></div>
+  <span class="proj-name" id="projName">Neues Projekt</span>
+  <div class="spacer"></div>
+  <div class="bar-actions">
+    <button class="btn" onclick="App.importDialog()">Import <small>CSV/XLSX</small></button>
+    <button class="btn" onclick="App.exportDialog()">Export</button>
+    <button class="btn" onclick="App.loadProject()">Laden <small>.json</small></button>
+    <button class="btn primary" onclick="App.saveProject()">Speichern <small>.json</small></button>
+    <button class="btn ghost" id="aiGear" onclick="App.aiSettings()" title="KI-Einstellungen">KI ⚙︎</button>
+    <button class="btn ghost" onclick="App.menu()" title="Weiteres">⋯</button>
+  </div>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button class="tab active" data-tab="dash" onclick="App.go('dash')">Übersicht</button>
+  <button class="tab" data-tab="code" onclick="App.go('code')">C-Code <span class="count" id="cnt-code">0</span></button>
+  <button class="tab" data-tab="tests" onclick="App.go('tests')">Testfälle <span class="count" id="cnt-tests">0</span></button>
+  <button class="tab" data-tab="reqs" onclick="App.go('reqs')">Requirements <span class="count" id="cnt-reqs">0</span></button>
+  <button class="tab" data-tab="matrix" onclick="App.go('matrix')">Matrix</button>
+</nav>
+
+<main><div id="view" class="view"></div></main>
+
+<div class="footbar">
+  <span id="foot-stats">–</span><span class="spacer" style="flex:1"></span><span id="foot-saved">nicht gespeichert</span>
+</div>
+
+<div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
+<div id="toast"></div>
+
+<script>
+const STATUS={Pass:{label:"Bestanden",cls:"s-Pass"},Fail:{label:"Fehlgeschlagen",cls:"s-Fail"},
+  Blocked:{label:"Blockiert",cls:"s-Blocked"},NotRun:{label:"Nicht ausgeführt",cls:"s-NotRun"}};
+const STATUS_COLOR={Pass:"#2F9E44",Fail:"#E03131",Blocked:"#E8870B",NotRun:"#7A7F88"};
+const PRIOS=["Hoch","Mittel","Niedrig"];
+const ORIGIN={skeleton:{l:"Skeleton",c:"skel"},ai:{l:"KI",c:"ai"},manual:{l:"manuell",c:"man"}};
+const LS_KEY="testspec_manager_v2", LS_AIKEY="tsm_api_key";
+
+const App={
+  state:{meta:{name:"Neues Projekt"},requirements:[],testcases:[],codeFiles:[],settings:{model:"claude-sonnet-4-6"}},
+  tab:"dash",
+  filters:{tcSearch:"",tcStatus:"",tcPrio:"",reqSearch:"",mxReq:"",mxTc:"",mxLinkedOnly:false,codeSearch:""},
+
+  init(){
+    try{ const raw=localStorage.getItem(LS_KEY); if(raw) this.state=JSON.parse(raw); else this.loadSample(true); }
+    catch(e){ this.loadSample(true); }
+    if(!this.state.codeFiles) this.state.codeFiles=[];
+    if(!this.state.settings) this.state.settings={model:"claude-sonnet-4-6"};
+    this.render();
+  },
+  persist(){
+    try{ localStorage.setItem(LS_KEY,JSON.stringify(this.state)); }catch(e){ this.toast("Lokaler Speicher voll – bitte Projekt als .json sichern"); }
+    this.state.meta.modified=new Date().toISOString();
+    document.getElementById("foot-saved").textContent="lokal gesichert · "+new Date().toLocaleTimeString("de-DE");
+  },
+  uid(prefix,list){ let n=list.length+1,id; const ex=s=>list.some(x=>x.id===s);
+    do{ id=prefix+"-"+String(n).padStart(3,"0"); n++; }while(ex(id)); return id; },
+  hasKey(){ return !!localStorage.getItem(LS_AIKEY); },
+
+  go(tab){ this.tab=tab; this.render(); },
+  render(){
+    document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===this.tab));
+    document.getElementById("cnt-tests").textContent=this.state.testcases.length;
+    document.getElementById("cnt-reqs").textContent=this.state.requirements.length;
+    document.getElementById("cnt-code").textContent=this.fnCount();
+    document.getElementById("projName").textContent=this.state.meta.name||"Neues Projekt";
+    document.getElementById("aiGear").textContent=this.hasKey()?"KI ●":"KI ⚙︎";
+    const cov=this.coverage();
+    document.getElementById("foot-stats").textContent=
+      `${this.state.requirements.length} Reqs · ${this.state.testcases.length} Testfälle · ${this.fnCount()} Funktionen · ${cov.pct}% abgedeckt`;
+    const el=document.getElementById("view");
+    el.innerHTML=({dash:this.viewDash,code:this.viewCode,tests:this.viewTests,reqs:this.viewReqs,matrix:this.viewMatrix})[this.tab].call(this);
+    if(this.tab==="tests")this.bindTests(); if(this.tab==="reqs")this.bindReqs();
+    if(this.tab==="matrix")this.bindMatrix(); if(this.tab==="code")this.bindCode();
+  },
+
+  /* ---- computed ---- */
+  reqById(id){ return this.state.requirements.find(r=>r.id===id); },
+  tcsForReq(id){ return this.state.testcases.filter(t=>(t.reqIds||[]).includes(id)); },
+  fnCount(){ return this.state.codeFiles.reduce((a,c)=>a+c.functions.length,0); },
+  allFns(){ const o=[]; this.state.codeFiles.forEach(c=>c.functions.forEach(f=>o.push({file:c.name,fn:f}))); return o; },
+  tcsForFn(file,name){ return this.state.testcases.filter(t=>t.codeRef&&t.codeRef.file===file&&t.codeRef.fn===name); },
+  reqRollup(id){ const ts=this.tcsForReq(id); if(!ts.length)return"None";
+    if(ts.some(t=>t.status==="Fail"))return"Fail"; if(ts.some(t=>t.status==="Blocked"))return"Blocked";
+    if(ts.some(t=>t.status==="NotRun"))return"NotRun"; return"Pass"; },
+  coverage(){ const total=this.state.requirements.length;
+    const covered=this.state.requirements.filter(r=>this.tcsForReq(r.id).length>0).length;
+    return {total,covered,uncovered:total-covered,pct:total?Math.round(covered/total*100):0}; },
+  statusCounts(){ const c={Pass:0,Fail:0,Blocked:0,NotRun:0}; this.state.testcases.forEach(t=>c[t.status]=(c[t.status]||0)+1); return c; },
+
+  statusPill(s){ const m=STATUS[s]; return m?`<span class="status ${m.cls}"><span class="dot"></span>${m.label}</span>`:`<span class="status s-None"><span class="dot"></span>–</span>`; },
+  rollupPill(s){ return s==="None"?`<span class="status s-None"><span class="dot"></span>Keine Abdeckung</span>`:this.statusPill(s); },
+  originBadge(o){ const m=ORIGIN[o]||ORIGIN.manual; return `<span class="badge ${m.c}">${m.l}</span>`; },
+  reqChips(ids){ if(!ids||!ids.length)return`<span class="chip empty">keine</span>`;
+    return`<div class="chips">`+ids.map(id=>{const r=this.reqById(id);return`<span class="chip req" title="${r?esc(r.title):'unbekannt'}">${esc(id)}</span>`;}).join("")+`</div>`; },
+  codeRefChip(cr){ if(!cr||!cr.fn)return`<span class="chip empty">–</span>`;
+    return`<span class="chip" title="${esc(cr.file)} · Zeile ${cr.lineStart||'?'}–${cr.lineEnd||'?'}">${esc(cr.fn)}()</span>`; },
+
+  /* ============ DASHBOARD ============ */
+  viewDash(){
+    if(!this.state.requirements.length&&!this.state.testcases.length&&!this.fnCount())return this.emptyState();
+    const cov=this.coverage(),sc=this.statusCounts(),totalTc=this.state.testcases.length;
+    const gaps=this.state.requirements.filter(r=>this.tcsForReq(r.id).length===0);
+    const seg=k=>totalTc?(sc[k]/totalTc*100):0;
+    const findings=this.codeFindings();
+    return `
+    <div class="kpis">
+      <div class="kpi"><div class="label">Requirements</div><div class="val">${cov.total}</div></div>
+      <div class="kpi"><div class="label">Testfälle</div><div class="val">${totalTc}</div></div>
+      <div class="kpi"><div class="label">C-Funktionen</div><div class="val">${this.fnCount()}</div></div>
+      <div class="kpi"><div class="label">Abdeckung</div><div class="val">${cov.pct}<small>%</small></div></div>
+      <div class="kpi ${cov.uncovered?'alert':''}"><div class="label">Ohne Testfall</div><div class="val">${cov.uncovered}</div></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>Requirement-Abdeckung</h3><div class="body">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;font-size:13px">
+          <span><b>${cov.covered}</b> von ${cov.total} abgedeckt</span><span style="font-family:var(--mono);color:var(--muted)">${cov.pct}%</span></div>
+        <div class="cov-track"><span style="width:${cov.pct}%;background:var(--accent)"></span><span style="width:${100-cov.pct}%;background:var(--blocked-soft)"></span></div>
+        <div class="legend"><span><i style="background:var(--accent)"></i>abgedeckt (${cov.covered})</span><span><i style="background:var(--blocked)"></i>ohne Testfall (${cov.uncovered})</span></div>
+      </div></div>
+      <div class="card"><h3>Testfall-Status</h3><div class="body">
+        ${totalTc?`<div class="cov-track" style="margin-bottom:10px">
+          <span style="width:${seg('Pass')}%;background:${STATUS_COLOR.Pass}"></span><span style="width:${seg('Fail')}%;background:${STATUS_COLOR.Fail}"></span>
+          <span style="width:${seg('Blocked')}%;background:${STATUS_COLOR.Blocked}"></span><span style="width:${seg('NotRun')}%;background:${STATUS_COLOR.NotRun}"></span></div>
+          <div class="legend"><span><i style="background:${STATUS_COLOR.Pass}"></i>Bestanden ${sc.Pass}</span><span><i style="background:${STATUS_COLOR.Fail}"></i>Fehlg. ${sc.Fail}</span>
+          <span><i style="background:${STATUS_COLOR.Blocked}"></i>Blockiert ${sc.Blocked}</span><span><i style="background:${STATUS_COLOR.NotRun}"></i>Offen ${sc.NotRun}</span></div>`
+          :`<div style="color:var(--muted)">Noch keine Testfälle.</div>`}
+      </div></div>
+    </div>
+    <div class="card" style="margin-top:16px"><h3>Lücken · Requirements ohne Testfall ${gaps.length?`<span class="chip" style="margin-left:6px">${gaps.length}</span>`:''}</h3>
+      ${gaps.length?`<div class="gap-list">`+gaps.map(r=>`<div class="gap-row" onclick="App.openReq('${r.id}')">
+        <span class="id-cell">${esc(r.id)}</span><span class="ttl" style="flex:1">${esc(r.title)}</span>
+        <span class="status s-None"><span class="dot"></span>nicht abgedeckt</span></div>`).join("")+`</div>`
+        :`<div class="body" style="color:var(--pass)">✓ Alle Requirements haben mindestens einen Testfall.</div>`}
+    </div>
+    ${findings.length?`<div class="card" style="margin-top:16px"><h3>Code-Findings <span class="chip" style="margin-left:6px">${findings.length}</span></h3>
+      <div class="findings">${findings.slice(0,12).map(f=>`<div class="finding ${f.lv}"><span class="lv">${f.lv}</span><span>${esc(f.msg)}</span></div>`).join("")}
+      ${findings.length>12?`<div class="hint">… und ${findings.length-12} weitere (siehe Tab „C-Code")</div>`:''}</div></div>`:''}`;
+  },
+  emptyState(){
+    return `<div class="panel"><div class="empty"><h3>Noch keine Daten</h3>
+      <p>Importiere C-Code (Tab „C-Code") und/oder deine Testspec aus DOORS/Excel, lade ein Projekt, oder starte mit Beispieldaten.</p>
+      <div class="actions">
+        <button class="btn primary" onclick="App.go('code')">C-Code importieren</button>
+        <button class="btn" onclick="App.importDialog()">Excel/CSV importieren</button>
+        <button class="btn" onclick="App.loadSample(false)">Beispieldaten laden</button>
+      </div></div></div>`;
+  },
+
+  /* ============ C-CODE ============ */
+  viewCode(){
+    const f=this.filters;
+    const aiOn=this.hasKey();
+    const fns=this.allFns().filter(x=> !f.codeSearch || (x.file+" "+x.fn.name+" "+x.fn.signature).toLowerCase().includes(f.codeSearch.toLowerCase()));
+    const findings=this.codeFindings();
+    const head=`
+      <div class="view-head"><h2>C-Code</h2><span class="sub">${this.state.codeFiles.length} Datei(en) · ${this.fnCount()} Funktionen</span>
+        <div class="spacer" style="flex:1"></div>
+        <button class="btn" onclick="App.importC()">C-Dateien einlesen <small>.c .h</small></button>
+        <button class="btn" onclick="App.generateSkeletons(false)">Skeletons erzeugen</button>
+        <button class="btn" onclick="App.exportXLSX()">Modifiziertes Excel <small>.xlsx</small></button>
+      </div>
+      <div class="ai-bar">${aiOn
+        ? `<span class="badge ai">KI aktiv</span> Claude generiert echte Testfälle &amp; Reviews pro Funktion (Kosten über deinen Key).`
+        : `<span class="badge">KI aus</span> Optional: mit eigenem API-Key generiert Claude echte Testfälle &amp; Code-Reviews. <button class="btn ai" style="margin-left:auto;padding:4px 9px" onclick="App.aiSettings()">KI aktivieren</button>`}
+      </div>`;
+    if(!this.fnCount()) return head+`<div class="panel"><div class="empty"><h3>Kein C-Code geladen</h3>
+      <p>Lies eine oder mehrere <code>.c</code>/<code>.h</code>-Dateien ein. Das Tool erkennt Funktionen, Zeilen und Verzweigungen und prüft die Traceability.</p>
+      <div class="actions"><button class="btn primary" onclick="App.importC()">C-Dateien einlesen</button></div></div></div>`;
+    return head+`
+    <div class="toolbar"><input class="search" type="search" id="codeSearch" placeholder="Funktion / Datei suchen…" value="${esc(f.codeSearch)}"></div>
+    ${findings.length?`<div class="card" style="margin-bottom:14px"><h3>Findings <span class="chip" style="margin-left:6px">${findings.length}</span></h3>
+      <div class="findings">${findings.map(x=>`<div class="finding ${x.lv}"><span class="lv">${x.lv}</span><span>${esc(x.msg)}</span></div>`).join("")}</div></div>`:''}
+    <div class="panel"><table>
+      <thead><tr><th style="width:120px">Datei</th><th>Funktion</th><th style="width:80px">Zeilen</th><th style="width:60px">Verzw.</th><th style="width:150px">Reqs</th><th style="width:120px">Testfälle</th></tr></thead>
+      <tbody>${fns.map(({file,fn})=>{
+        const tcs=this.tcsForFn(file,fn.name);
+        return `<tr class="clickable" onclick="App.openFn('${esc(file)}','${esc(fn.name)}')">
+          <td class="id-cell">${esc(file)}</td>
+          <td><span class="sig">${esc(fn.signature)}</span></td>
+          <td style="font-family:var(--mono);font-size:12px">${fn.lineStart}–${fn.lineEnd}</td>
+          <td>${fn.decisions?`<span class="badge br">${fn.decisions}</span>`:'<span style="color:var(--faint)">0</span>'}</td>
+          <td>${this.reqChips(fn.reqIds)}</td>
+          <td>${tcs.length?`<span class="chip">${tcs.length}</span>`:`<span class="chip empty">0</span>`}</td>
+        </tr>`; }).join("")}
+      </tbody></table></div>
+    <p class="hint" style="margin-top:10px">Klick auf eine Funktion: Code ansehen, Requirements verknüpfen, Skeleton oder (mit KI) echte Testfälle erzeugen. Der Parser ist heuristisch (Regex) – kein Compiler/Static-Analyzer.</p>`;
+  },
+  bindCode(){ const s=document.getElementById("codeSearch"); if(!s)return;
+    s.oninput=e=>{this.filters.codeSearch=e.target.value;const p=e.target.selectionStart;this.render();const n=document.getElementById("codeSearch");n.focus();n.setSelectionRange(p,p);}; },
+
+  importC(){
+    const inp=document.createElement("input"); inp.type="file"; inp.accept=".c,.h,.cpp,.cc,.cxx,.hpp"; inp.multiple=true;
+    inp.onchange=e=>{ const files=[...e.target.files]; if(!files.length)return; let done=0;
+      files.forEach(file=>{ const rd=new FileReader();
+        rd.onload=ev=>{ const src=ev.target.result; const fns=parseFunctions(src);
+          const ex=this.state.codeFiles.findIndex(c=>c.name===file.name);
+          const cf={name:file.name,source:src,functions:fns};
+          if(ex>=0){ // keep existing req links by function name
+            const old=this.state.codeFiles[ex];
+            cf.functions.forEach(fn=>{ const o=old.functions.find(of=>of.name===fn.name); if(o&&o.reqIds) fn.reqIds=o.reqIds; });
+            this.state.codeFiles[ex]=cf;
+          } else this.state.codeFiles.push(cf);
+          done++; if(done===files.length){ this.reconcileCodeLinks(); this.persist(); this.render(); this.toast(`${files.length} Datei(en) eingelesen · ${this.fnCount()} Funktionen`); }
+        };
+        rd.readAsText(file,"utf-8"); });
+    };
+    inp.click();
+  },
+  reconcileCodeLinks(){ // rebuild fn.reqIds from test cases that carry codeRef+reqIds (mapping from Excel)
+    this.state.testcases.forEach(t=>{ if(t.codeRef&&t.codeRef.fn){
+      const cf=this.state.codeFiles.find(c=>c.name===t.codeRef.file)||this.state.codeFiles.find(c=>c.functions.some(f=>f.name===t.codeRef.fn));
+      const fn=cf&&cf.functions.find(f=>f.name===t.codeRef.fn);
+      if(fn){ fn.reqIds=fn.reqIds||[]; (t.reqIds||[]).forEach(id=>{ if(!fn.reqIds.includes(id)) fn.reqIds.push(id); }); }
+    }}); },
+
+  codeFindings(){
+    const f=[]; const hasCode=this.state.codeFiles.length>0;
+    this.state.codeFiles.forEach(cf=>cf.functions.forEach(fn=>{
+      const tcs=this.tcsForFn(cf.name,fn.name);
+      if(!fn.reqIds||!fn.reqIds.length) f.push({lv:"warn",msg:`${fn.name}() in ${cf.name} ist keinem Requirement zugeordnet.`});
+      if(!tcs.length) f.push({lv:"warn",msg:`${fn.name}() in ${cf.name} hat keinen Testfall.`});
+      else if(fn.decisions && tcs.length < Math.ceil(fn.decisions/2)) f.push({lv:"info",msg:`${fn.name}() hat ${fn.decisions} Verzweigungen, aber nur ${tcs.length} Testfall/Testfälle – Branch-Coverage prüfen.`});
+      if((fn.lineEnd-fn.lineStart)>80) f.push({lv:"info",msg:`${fn.name}() ist lang (${fn.lineEnd-fn.lineStart} Zeilen) – evtl. aufteilen/mehr Tests.`});
+    }));
+    this.state.requirements.forEach(r=>{ if(hasCode){
+      const inCode=this.state.codeFiles.some(cf=>cf.functions.some(fn=>(fn.reqIds||[]).includes(r.id)));
+      if(!inCode) f.push({lv:"warn",msg:`${r.id} ist keiner C-Funktion zugeordnet (kein Code-Trace).`});
+    }});
+    return f;
+  },
+
+  openFn(file,name){
+    const cf=this.state.codeFiles.find(c=>c.name===file); const fn=cf&&cf.functions.find(f=>f.name===name);
+    if(!fn)return;
+    const src=(cf.source||"").split("\n").slice(fn.lineStart-1,fn.lineEnd);
+    const codeHtml=src.map((l,i)=>`<span class="ln">${fn.lineStart+i}</span>${esc(l)}`).join("\n");
+    const tcs=this.tcsForFn(file,name);
+    const aiOn=this.hasKey();
+    this.modal(`${esc(fn.name)}()  ·  ${esc(file)}`, `
+      <div class="field"><label>Signatur · Zeile ${fn.lineStart}–${fn.lineEnd} · ${fn.decisions} Verzweigung(en)</label><span class="sig" style="max-width:none">${esc(fn.signature)}</span></div>
+      <div class="field"><label>Verknüpfte Requirements</label><div>${this.reqChips(fn.reqIds)}</div></div>
+      <div class="field"><label>Quellcode</label><div class="code-prev">${codeHtml}</div></div>
+      <div class="field"><label>Verknüpfte Testfälle (${tcs.length})</label>
+        ${tcs.length?`<div class="panel"><table><tbody>`+tcs.map(t=>`<tr class="clickable" onclick="App.closeModal();App.editTest('${t.id}')">
+          <td class="id-cell" style="width:90px">${esc(t.id)}</td><td>${esc(t.title)} ${this.originBadge(t.origin)}</td><td style="width:150px">${this.statusPill(t.status)}</td></tr>`).join("")+`</tbody></table></div>`
+          :`<div class="hint">Noch kein Testfall. Unten Skeleton erzeugen oder – mit KI – echte Testfälle generieren.</div>`}
+      </div>`,
+      [
+        {label:"Requirements verknüpfen",cls:"",fn:()=>this.linkFnReq(file,name)},
+        {label:"Skeleton erzeugen",cls:"",fn:()=>{this.genSkeletonFor(file,name);}},
+        ...(aiOn?[{label:"KI: Testfälle",cls:"ai",fn:()=>this.aiGenerate(file,name)},{label:"KI: Review",cls:"ai",fn:()=>this.aiReview(file,name)}]
+                :[{label:"KI aktivieren",cls:"ai",fn:()=>this.aiSettings()}]),
+        {label:"Schließen",cls:"primary",fn:()=>this.closeModal()}
+      ]);
+  },
+  linkFnReq(file,name){
+    const cf=this.state.codeFiles.find(c=>c.name===file); const fn=cf&&cf.functions.find(f=>f.name===name);
+    this._fnDraft={file,name,reqIds:[...(fn.reqIds||[])]}; this._pkSearch="";
+    this.modal(`Requirements für ${esc(name)}()`, `
+      <div class="field"><label>Ausgewählt</label><div class="sel-chips" id="fnSelChips">${this.fnSelChips()}</div></div>
+      <div class="req-picker"><div class="pk-search"><input type="text" id="pkSearch" placeholder="Requirement suchen…" style="width:100%"></div>
+        <div class="pk-list" id="fnPkList">${this.fnPkList("")}</div></div>`,
+      [{label:"Abbrechen",cls:"",fn:()=>{this._fnDraft=null;this.openFn(file,name);}},
+       {label:"Speichern",cls:"primary",fn:()=>{ fn.reqIds=this._fnDraft.reqIds; this._fnDraft=null; this.persist(); this.openFn(file,name); this.toast("Verknüpfung gespeichert"); }}]);
+    const ps=document.getElementById("pkSearch"); if(ps)ps.oninput=e=>{this._pkSearch=e.target.value;document.getElementById("fnPkList").innerHTML=this.fnPkList(e.target.value);};
+  },
+  fnSelChips(){ const ids=this._fnDraft.reqIds; if(!ids.length)return`<span style="color:var(--faint);font-size:12px;font-style:italic">Noch keine – unten auswählen.</span>`;
+    return ids.map(id=>`<span class="chip req" onclick="App.toggleFnReq('${id}')" title="Entfernen">${esc(id)} ✕</span>`).join(""); },
+  fnPkList(q){ q=(q||"").toLowerCase(); const list=this.state.requirements.filter(r=>!q||(r.id+" "+r.title).toLowerCase().includes(q));
+    if(!list.length)return`<div style="padding:12px;color:var(--muted);font-size:12px">Keine Requirements gefunden.</div>`;
+    return list.map(r=>{const on=this._fnDraft.reqIds.includes(r.id);
+      return`<label class="pk-item"><input type="checkbox" ${on?'checked':''} onchange="App.toggleFnReq('${r.id}')"><span class="pid">${esc(r.id)}</span><span style="flex:1">${esc(r.title)}</span></label>`;}).join(""); },
+  toggleFnReq(id){ const d=this._fnDraft; const i=d.reqIds.indexOf(id); if(i>=0)d.reqIds.splice(i,1); else d.reqIds.push(id);
+    document.getElementById("fnSelChips").innerHTML=this.fnSelChips(); document.getElementById("fnPkList").innerHTML=this.fnPkList(this._pkSearch);
+    const ps=document.getElementById("pkSearch"); if(ps)ps.oninput=e=>{this._pkSearch=e.target.value;document.getElementById("fnPkList").innerHTML=this.fnPkList(e.target.value);}; },
+
+  genSkeletonFor(file,name){
+    const cf=this.state.codeFiles.find(c=>c.name===file); const fn=cf&&cf.functions.find(f=>f.name===name);
+    const id=this.uid("TC",this.state.testcases);
+    this.state.testcases.push({id,title:`Test ${fn.name}`,status:"NotRun",priority:"Mittel",precondition:"",
+      steps:`1. ${fn.name}(${fn.params||''}) aufrufen\n2. Eingaben setzen`,expected:"TBD – Sollverhalten spezifizieren",
+      reqIds:[...(fn.reqIds||[])],codeRef:{file,fn:fn.name,lineStart:fn.lineStart,lineEnd:fn.lineEnd},origin:"skeleton"});
+    this.persist(); this.openFn(file,name); this.toast("Skeleton erzeugt");
+  },
+  generateSkeletons(perBranch){
+    let created=0;
+    this.state.codeFiles.forEach(cf=>cf.functions.forEach(fn=>{
+      if(this.tcsForFn(cf.name,fn.name).length) return;
+      const n=perBranch?Math.max(1,fn.decisions||1):1;
+      for(let k=0;k<n;k++){ const id=this.uid("TC",this.state.testcases);
+        this.state.testcases.push({id,title:n>1?`Test ${fn.name} – Fall ${k+1}`:`Test ${fn.name}`,status:"NotRun",priority:"Mittel",
+          precondition:"",steps:`1. ${fn.name}(${fn.params||''}) aufrufen\n2. Eingaben gemäß Fall ${k+1} setzen`,
+          expected:"TBD – Sollverhalten spezifizieren",reqIds:[...(fn.reqIds||[])],
+          codeRef:{file:cf.name,fn:fn.name,lineStart:fn.lineStart,lineEnd:fn.lineEnd},origin:"skeleton"}); created++; }
+    }));
+    this.persist(); this.render(); this.toast(created?`${created} Skeleton(s) erzeugt`:"Alle Funktionen haben bereits Testfälle");
+  },
+
+  /* ---- KI / AI ---- */
+  aiSettings(){
+    const key=localStorage.getItem(LS_AIKEY)||""; const model=this.state.settings.model||"claude-sonnet-4-6";
+    this.modal("KI-Einstellungen (optional)", `
+      <div class="hint">Optional. Ohne Key laufen alle lokalen Funktionen normal. Mit eigenem Anthropic-API-Key generiert Claude echte Testfälle und gibt Code-Reviews. Der Key wird nur lokal in diesem Browser gespeichert und ausschließlich an <code>api.anthropic.com</code> gesendet – die Kosten laufen über deinen Key. Er landet <b>nicht</b> in der exportierten Projektdatei.</div>
+      <div class="field"><label>Anthropic API-Key</label><input type="password" id="aiKey" value="${esc(key)}" placeholder="sk-ant-…"></div>
+      <div class="field"><label>Modell</label><select id="aiModel">
+        <option value="claude-sonnet-4-6" ${model==='claude-sonnet-4-6'?'selected':''}>Claude Sonnet 4.6 (empfohlen)</option>
+        <option value="claude-opus-4-8" ${model==='claude-opus-4-8'?'selected':''}>Claude Opus 4.8 (gründlicher)</option>
+        <option value="claude-haiku-4-5-20251001" ${model==='claude-haiku-4-5-20251001'?'selected':''}>Claude Haiku 4.5 (schnell/günstig)</option>
+      </select></div>
+      <div class="hint">Direkter Browser-Aufruf nutzt den Header für Direktzugriff. Hinter Firmen-Proxys/CSP kann das blockiert sein – dann das File lokal in einem normalen Browserfenster öffnen.</div>`,
+      [{label:"Key entfernen",cls:"danger",fn:()=>{localStorage.removeItem(LS_AIKEY);this.closeModal();this.render();this.toast("Key entfernt");}},
+       {label:"Speichern",cls:"primary",fn:()=>{ const k=document.getElementById("aiKey").value.trim();
+         if(k)localStorage.setItem(LS_AIKEY,k); else localStorage.removeItem(LS_AIKEY);
+         this.state.settings.model=document.getElementById("aiModel").value; this.persist(); this.closeModal(); this.render(); this.toast("Gespeichert"); }}]);
+  },
+  async aiGenerate(file,name){
+    if(!this.hasKey()){ this.aiSettings(); return; }
+    const cf=this.state.codeFiles.find(c=>c.name===file); const fn=cf&&cf.functions.find(f=>f.name===name);
+    if(!fn){ this.toast("Funktion nicht gefunden"); return; }
+    const src=(cf.source||"").split("\n").slice(fn.lineStart-1,fn.lineEnd).join("\n");
+    const reqText=(fn.reqIds||[]).map(id=>{const r=this.reqById(id);return r?`${id}: ${r.title}${r.text?(' – '+r.text):''}`:id;}).join("\n")||"(keine zugeordnet)";
+    this.toast("KI generiert Testfälle…");
+    try{
+      const sys="Du bist Senior-Testingenieur für sicherheitskritische Embedded-C-Software (Automotive, ISO 26262). Erzeuge konkrete, prüfbare Testfälle für die gegebene C-Funktion: Randwerte, Äquivalenzklassen, Fehlerfälle, Branch-Coverage. Antworte AUSSCHLIESSLICH mit einem JSON-Array ohne Markdown und ohne Erklärung. Schema je Element: {\"title\":string,\"precondition\":string,\"steps\":string,\"expected\":string,\"priority\":\"Hoch\"|\"Mittel\"|\"Niedrig\"}.";
+      const user=`Requirements:\n${reqText}\n\nC-Funktion (${file}, Zeilen ${fn.lineStart}-${fn.lineEnd}):\n\`\`\`c\n${src}\n\`\`\``;
+      const out=await callAnthropic([{role:"user",content:user}],sys,2500);
+      const arr=JSON.parse(out.replace(/```json|```/g,"").trim());
+      let added=0;
+      arr.forEach(o=>{ const id=this.uid("TC",this.state.testcases);
+        this.state.testcases.push({id,title:o.title||("Test "+fn.name),status:"NotRun",priority:normPrio(o.priority)||"Mittel",
+          precondition:o.precondition||"",steps:o.steps||"",expected:o.expected||"",reqIds:[...(fn.reqIds||[])],
+          codeRef:{file,fn:fn.name,lineStart:fn.lineStart,lineEnd:fn.lineEnd},origin:"ai"}); added++; });
+      this.persist(); this.openFn(file,name); this.toast(`${added} KI-Testfall/Testfälle erzeugt`);
+    }catch(e){ this.toast("KI-Fehler: "+e.message); }
+  },
+  async aiReview(file,name){
+    if(!this.hasKey()){ this.aiSettings(); return; }
+    const cf=this.state.codeFiles.find(c=>c.name===file); const fn=cf&&cf.functions.find(f=>f.name===name);
+    const src=(cf.source||"").split("\n").slice(fn.lineStart-1,fn.lineEnd).join("\n");
+    this.toast("KI prüft den Code…");
+    try{
+      const sys="Du bist erfahrener Embedded-C-Reviewer (Automotive). Gib ein knappes, sachliches Review der Funktion: mögliche Bugs, Randfälle, undefiniertes Verhalten, Integer-/Overflow-Risiken, Testbarkeit. Max. 8 kurze Stichpunkte, je Zeile mit '- '. Keine Einleitung.";
+      const out=await callAnthropic([{role:"user",content:`C-Funktion (${file}):\n\`\`\`c\n${src}\n\`\`\``}],sys,1200);
+      this.modal(`KI-Review · ${esc(name)}()`, `<div class="hint">Hinweis: KI-Hinweise, kein zertifizierter Static-Analyzer. Als Anregung für Tests/Review nutzen.</div>
+        <div style="white-space:pre-wrap;font-size:13px;line-height:1.6">${esc(out)}</div>`,
+        [{label:"Schließen",cls:"primary",fn:()=>this.openFn(file,name)}]);
+    }catch(e){ this.toast("KI-Fehler: "+e.message); }
+  },
+
+  /* ============ TESTFÄLLE ============ */
+  viewTests(){
+    const f=this.filters,rows=this.filteredTests();
+    return `<div class="view-head"><h2>Testfälle</h2><span class="sub">${rows.length} von ${this.state.testcases.length} sichtbar</span>
+      <div class="spacer" style="flex:1"></div><button class="btn primary" onclick="App.editTest(null)">+ Neuer Testfall</button></div>
+    <div class="toolbar">
+      <input class="search" type="search" id="tcSearch" placeholder="Suche ID, Titel, Beschreibung…" value="${esc(f.tcSearch)}">
+      <select id="tcStatus"><option value="">Alle Status</option>${Object.keys(STATUS).map(s=>`<option value="${s}" ${f.tcStatus===s?'selected':''}>${STATUS[s].label}</option>`).join("")}</select>
+      <select id="tcPrio"><option value="">Alle Prioritäten</option>${PRIOS.map(p=>`<option ${f.tcPrio===p?'selected':''}>${p}</option>`).join("")}</select>
+    </div>
+    <div class="panel"><table>
+      <thead><tr><th style="width:92px">ID</th><th>Titel</th><th style="width:140px">Status</th><th style="width:80px">Prio</th><th>Reqs</th><th style="width:120px">Code</th><th style="width:60px"></th></tr></thead>
+      <tbody>${rows.length?rows.map(t=>`<tr class="clickable" onclick="App.editTest('${t.id}')">
+        <td class="id-cell">${esc(t.id)}</td>
+        <td class="ttl">${esc(t.title)||'<span style="color:var(--faint)">(ohne Titel)</span>'} ${this.originBadge(t.origin)}</td>
+        <td>${this.statusPill(t.status)}</td><td>${esc(t.priority)||'–'}</td>
+        <td>${this.reqChips(t.reqIds)}</td><td>${this.codeRefChip(t.codeRef)}</td>
+        <td><div class="row-actions" onclick="event.stopPropagation()"><button class="icon-btn del" onclick="App.delTest('${t.id}')">✕</button></div></td>
+      </tr>`).join(""):`<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:30px">Keine Testfälle für diese Filter.</td></tr>`}</tbody>
+    </table></div>`;
+  },
+  filteredTests(){ const f=this.filters,q=f.tcSearch.toLowerCase();
+    return this.state.testcases.filter(t=>{ if(f.tcStatus&&t.status!==f.tcStatus)return false; if(f.tcPrio&&t.priority!==f.tcPrio)return false;
+      if(q){const hay=(t.id+" "+t.title+" "+(t.description||"")+" "+(t.reqIds||[]).join(" ")+" "+(t.codeRef?t.codeRef.fn:"")).toLowerCase(); if(!hay.includes(q))return false;} return true; }); },
+  bindTests(){ const s=document.getElementById("tcSearch");
+    s.oninput=e=>{this.filters.tcSearch=e.target.value;const p=e.target.selectionStart;this.render();const n=document.getElementById("tcSearch");n.focus();n.setSelectionRange(p,p);};
+    document.getElementById("tcStatus").onchange=e=>{this.filters.tcStatus=e.target.value;this.render();};
+    document.getElementById("tcPrio").onchange=e=>{this.filters.tcPrio=e.target.value;this.render();}; },
+
+  codeOptions(cr){ let o=`<option value="">– keine –</option>`;
+    this.allFns().forEach(({file,fn})=>{ const v=file+"::"+fn.name; const sel=cr&&cr.file===file&&cr.fn===fn.name?'selected':'';
+      o+=`<option value="${esc(v)}" ${sel}>${esc(file)} : ${esc(fn.name)}() (Z. ${fn.lineStart}–${fn.lineEnd})</option>`; }); return o; },
+  editTest(id){
+    const isNew=!id;
+    const t=isNew?{id:this.uid("TC",this.state.testcases),title:"",status:"NotRun",priority:"Mittel",precondition:"",steps:"",expected:"",reqIds:[],codeRef:null,origin:"manual"}
+                 :JSON.parse(JSON.stringify(this.state.testcases.find(x=>x.id===id)));
+    this._draft=t; this._pkSearch="";
+    this.modal(isNew?"Neuer Testfall":`Testfall ${esc(t.id)} bearbeiten`, `
+      <div class="field-row">
+        <div class="field"><label>ID</label><input id="f_id" value="${esc(t.id)}"></div>
+        <div class="field"><label>Status</label><select id="f_status">${Object.keys(STATUS).map(s=>`<option value="${s}" ${t.status===s?'selected':''}>${STATUS[s].label}</option>`).join("")}</select></div>
+      </div>
+      <div class="field"><label>Titel</label><input id="f_title" value="${esc(t.title)}" placeholder="Kurzbeschreibung"></div>
+      <div class="field-row">
+        <div class="field"><label>Priorität</label><select id="f_prio">${PRIOS.map(p=>`<option ${t.priority===p?'selected':''}>${p}</option>`).join("")}</select></div>
+        <div class="field"><label>Code-Referenz (C-Funktion)</label><select id="f_code">${this.codeOptions(t.codeRef)}</select></div>
+      </div>
+      <div class="field"><label>Vorbedingung</label><input id="f_pre" value="${esc(t.precondition||'')}"></div>
+      <div class="field"><label>Testschritte</label><textarea id="f_steps">${esc(t.steps||'')}</textarea></div>
+      <div class="field"><label>Erwartetes Ergebnis</label><textarea id="f_exp">${esc(t.expected||'')}</textarea></div>
+      <div class="field"><label>Verknüpfte Requirements</label>
+        <div class="sel-chips" id="selChips">${this.selChips(t.reqIds)}</div>
+        <div class="req-picker"><div class="pk-search"><input type="text" id="pkSearch" placeholder="Requirement suchen…" style="width:100%"></div>
+          <div class="pk-list" id="pkList">${this.pkList(t.reqIds,"")}</div></div></div>`,
+      [{label:isNew?"Abbrechen":"Löschen",cls:isNew?"":"danger",fn:()=>isNew?this.closeModal():this.delTest(t.id,true)},
+       {label:"Speichern",cls:"primary",fn:()=>this.saveTest(isNew)}]);
+  },
+  selChips(ids){ if(!ids||!ids.length)return`<span style="color:var(--faint);font-size:12px;font-style:italic">Noch keine – unten auswählen.</span>`;
+    return ids.map(id=>`<span class="chip req" onclick="App.toggleReqLink('${id}')" title="Entfernen">${esc(id)} ✕</span>`).join(""); },
+  pkList(selected,q){ q=(q||"").toLowerCase(); const list=this.state.requirements.filter(r=>!q||(r.id+" "+r.title).toLowerCase().includes(q));
+    if(!list.length)return`<div style="padding:12px;color:var(--muted);font-size:12px">Keine Requirements. Lege im Tab „Requirements" welche an.</div>`;
+    return list.map(r=>{const on=selected.includes(r.id);
+      return`<label class="pk-item"><input type="checkbox" ${on?'checked':''} onchange="App.toggleReqLink('${r.id}')"><span class="pid">${esc(r.id)}</span><span style="flex:1">${esc(r.title)}</span></label>`;}).join(""); },
+  toggleReqLink(id){ const d=this._draft; d.reqIds=d.reqIds||[]; const i=d.reqIds.indexOf(id); if(i>=0)d.reqIds.splice(i,1); else d.reqIds.push(id);
+    document.getElementById("selChips").innerHTML=this.selChips(d.reqIds); document.getElementById("pkList").innerHTML=this.pkList(d.reqIds,this._pkSearch);
+    const ps=document.getElementById("pkSearch"); if(ps)ps.oninput=e=>{this._pkSearch=e.target.value;document.getElementById("pkList").innerHTML=this.pkList(d.reqIds,e.target.value);}; },
+  saveTest(isNew){
+    const d=this._draft,g=id=>document.getElementById(id),newId=g("f_id").value.trim();
+    if(!newId){this.toast("ID darf nicht leer sein");return;}
+    if(this.state.testcases.some(t=>t.id===newId&&t.id!==d.id)){this.toast("ID bereits vergeben");return;}
+    let codeRef=null; const cv=g("f_code").value;
+    if(cv){ const [file,fnName]=cv.split("::"); const cf=this.state.codeFiles.find(c=>c.name===file); const fn=cf&&cf.functions.find(f=>f.name===fnName);
+      codeRef={file,fn:fnName,lineStart:fn?fn.lineStart:null,lineEnd:fn?fn.lineEnd:null}; }
+    const obj={id:newId,title:g("f_title").value.trim(),status:g("f_status").value,priority:g("f_prio").value,
+      precondition:g("f_pre").value.trim(),steps:g("f_steps").value,expected:g("f_exp").value,reqIds:d.reqIds||[],codeRef,origin:d.origin||"manual"};
+    if(isNew)this.state.testcases.push(obj); else{const i=this.state.testcases.findIndex(t=>t.id===d.id);this.state.testcases[i]=obj;}
+    this.persist(); this.closeModal(); this.render(); this.toast(isNew?"Testfall angelegt":"Gespeichert");
+  },
+  delTest(id,fromModal){ if(!confirm("Diesen Testfall löschen?"))return; this.state.testcases=this.state.testcases.filter(t=>t.id!==id);
+    this.persist(); if(fromModal)this.closeModal(); this.render(); this.toast("Gelöscht"); },
+
+  /* ============ REQUIREMENTS ============ */
+  viewReqs(){
+    const f=this.filters,q=f.reqSearch.toLowerCase();
+    const rows=this.state.requirements.filter(r=>!q||(r.id+" "+r.title).toLowerCase().includes(q));
+    return `<div class="view-head"><h2>Requirements</h2><span class="sub">${rows.length} von ${this.state.requirements.length} sichtbar</span>
+      <div class="spacer" style="flex:1"></div><button class="btn primary" onclick="App.editReq(null)">+ Neues Requirement</button></div>
+    <div class="toolbar"><input class="search" type="search" id="reqSearch" placeholder="Suche ID oder Text…" value="${esc(f.reqSearch)}">
+      <span class="hint" style="flex:1">Verknüpfung Req↔Testfall pflegst du im Testfall, Req↔Code im Tab „C-Code".</span></div>
+    <div class="panel"><table>
+      <thead><tr><th style="width:110px">ID</th><th>Titel / Text</th><th style="width:80px">Tests</th><th style="width:170px">Abdeckung</th><th style="width:60px"></th></tr></thead>
+      <tbody>${rows.length?rows.map(r=>{const n=this.tcsForReq(r.id).length;
+        return`<tr class="clickable" onclick="App.openReq('${r.id}')"><td class="id-cell">${esc(r.id)}</td><td class="ttl">${esc(r.title)}</td>
+          <td>${n?`<span class="chip">${n}</span>`:`<span class="chip empty">0</span>`}</td><td>${this.rollupPill(this.reqRollup(r.id))}</td>
+          <td><div class="row-actions" onclick="event.stopPropagation()"><button class="icon-btn del" onclick="App.delReq('${r.id}')">✕</button></div></td></tr>`;}).join("")
+        :`<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:30px">Keine Requirements.</td></tr>`}</tbody>
+    </table></div>`;
+  },
+  bindReqs(){ const s=document.getElementById("reqSearch");
+    s.oninput=e=>{this.filters.reqSearch=e.target.value;const p=e.target.selectionStart;this.render();const n=document.getElementById("reqSearch");n.focus();n.setSelectionRange(p,p);}; },
+  openReq(id){ const r=this.reqById(id); if(!r)return; const ts=this.tcsForReq(id);
+    const fns=[]; this.state.codeFiles.forEach(cf=>cf.functions.forEach(fn=>{if((fn.reqIds||[]).includes(id))fns.push({file:cf.name,fn});}));
+    this.modal(`Requirement ${esc(r.id)}`, `
+      <div class="field"><label>Titel / Text</label><div style="font-size:13.5px">${esc(r.title)}</div></div>
+      ${r.text?`<div class="field"><label>Details</label><div style="font-size:13px;color:var(--muted);white-space:pre-wrap">${esc(r.text)}</div></div>`:''}
+      <div class="field"><label>Verknüpfte C-Funktionen (${fns.length})</label>${fns.length?`<div class="chips">`+fns.map(x=>`<span class="chip" onclick="App.closeModal();App.openFn('${esc(x.file)}','${esc(x.fn.name)}')" style="cursor:pointer">${esc(x.fn.name)}()</span>`).join("")+`</div>`:`<span class="chip empty">keine</span>`}</div>
+      <div class="field"><label>Verknüpfte Testfälle (${ts.length})</label>${ts.length?`<div class="panel"><table><tbody>`+ts.map(t=>`<tr class="clickable" onclick="App.closeModal();App.editTest('${t.id}')"><td class="id-cell" style="width:90px">${esc(t.id)}</td><td>${esc(t.title)}</td><td style="width:150px">${this.statusPill(t.status)}</td></tr>`).join("")+`</tbody></table></div>`:`<div class="hint">Kein Testfall verknüpft.</div>`}</div>`,
+      [{label:"Bearbeiten",cls:"",fn:()=>{this.closeModal();this.editReq(id);}},{label:"Schließen",cls:"primary",fn:()=>this.closeModal()}]);
+  },
+  editReq(id){ const isNew=!id; const r=isNew?{id:this.uid("REQ",this.state.requirements),title:"",text:""}:JSON.parse(JSON.stringify(this.reqById(id)));
+    this.modal(isNew?"Neues Requirement":`Requirement ${esc(r.id)} bearbeiten`, `
+      <div class="field"><label>ID</label><input id="r_id" value="${esc(r.id)}"></div>
+      <div class="field"><label>Titel / Text</label><input id="r_title" value="${esc(r.title)}"></div>
+      <div class="field"><label>Details (optional)</label><textarea id="r_text">${esc(r.text||'')}</textarea></div>`,
+      [{label:isNew?"Abbrechen":"Löschen",cls:isNew?"":"danger",fn:()=>isNew?this.closeModal():this.delReq(r.id,true)},
+       {label:"Speichern",cls:"primary",fn:()=>{ const nid=document.getElementById("r_id").value.trim();
+         if(!nid){this.toast("ID darf nicht leer sein");return;}
+         if(this.state.requirements.some(x=>x.id===nid&&x.id!==r.id)){this.toast("ID bereits vergeben");return;}
+         const obj={id:nid,title:document.getElementById("r_title").value.trim(),text:document.getElementById("r_text").value};
+         if(isNew)this.state.requirements.push(obj);
+         else{ const old=r.id; const i=this.state.requirements.findIndex(x=>x.id===old); this.state.requirements[i]=obj;
+           if(old!==nid){ this.state.testcases.forEach(t=>t.reqIds=(t.reqIds||[]).map(x=>x===old?nid:x));
+             this.state.codeFiles.forEach(cf=>cf.functions.forEach(fn=>fn.reqIds=(fn.reqIds||[]).map(x=>x===old?nid:x))); } }
+         this.persist(); this.closeModal(); this.render(); this.toast("Gespeichert"); }}]);
+  },
+  delReq(id,fromModal){ const n=this.tcsForReq(id).length;
+    if(!confirm(`Requirement löschen?${n?` Verknüpfung zu ${n} Testfall/Testfällen wird entfernt.`:''}`))return;
+    this.state.requirements=this.state.requirements.filter(r=>r.id!==id);
+    this.state.testcases.forEach(t=>t.reqIds=(t.reqIds||[]).filter(x=>x!==id));
+    this.state.codeFiles.forEach(cf=>cf.functions.forEach(fn=>fn.reqIds=(fn.reqIds||[]).filter(x=>x!==id)));
+    this.persist(); if(fromModal)this.closeModal(); this.render(); this.toast("Gelöscht"); },
+
+  /* ============ MATRIX ============ */
+  viewMatrix(){
+    const f=this.filters;
+    if(!this.state.requirements.length||!this.state.testcases.length)
+      return`<div class="view-head"><h2>Traceability-Matrix</h2></div><div class="panel"><div class="empty"><h3>Matrix nicht verfügbar</h3><p>Mindestens ein Requirement und ein Testfall nötig.</p></div></div>`;
+    let reqs=this.state.requirements,tcs=this.state.testcases;
+    if(f.mxReq){const q=f.mxReq.toLowerCase();reqs=reqs.filter(r=>(r.id+" "+r.title).toLowerCase().includes(q));}
+    if(f.mxTc){const q=f.mxTc.toLowerCase();tcs=tcs.filter(t=>(t.id+" "+t.title).toLowerCase().includes(q));}
+    if(f.mxLinkedOnly){ tcs=tcs.filter(t=>(t.reqIds||[]).length>0); const linked=new Set(); tcs.forEach(t=>(t.reqIds||[]).forEach(id=>linked.add(id))); reqs=reqs.filter(r=>linked.has(r.id)); }
+    const head=tcs.map(t=>`<th class="tc" title="${esc(t.id)} · ${esc(t.title)}"><span class="rot">${esc(t.id)}</span></th>`).join("");
+    const body=reqs.map(r=>{ const uncov=this.tcsForReq(r.id).length===0;
+      const cells=tcs.map(t=>{const on=(t.reqIds||[]).includes(r.id);
+        return`<td class="cell">${on?`<span class="mk" title="${esc(t.id)} → ${esc(r.id)} · ${STATUS[t.status].label}" style="background:${STATUS_COLOR[t.status]}"></span>`:''}</td>`;}).join("");
+      return`<tr class="${uncov?'uncov':''}"><th class="req" title="${esc(r.title)}"><span class="rid">${esc(r.id)}</span><span class="rtt">${esc(r.title)}</span></th>${cells}</tr>`;}).join("");
+    return `<div class="view-head"><h2>Traceability-Matrix</h2><span class="sub">${reqs.length} Reqs × ${tcs.length} Testfälle</span></div>
+    <div class="toolbar">
+      <input class="search" type="search" id="mxReq" placeholder="Requirements filtern…" value="${esc(f.mxReq)}" style="max-width:200px">
+      <input class="search" type="search" id="mxTc" placeholder="Testfälle filtern…" value="${esc(f.mxTc)}" style="max-width:200px">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)"><input type="checkbox" id="mxLinked" ${f.mxLinkedOnly?'checked':''}> nur Verknüpfte</label>
+      <span class="spacer" style="flex:1"></span>
+      <span class="legend" style="margin:0"><span><i style="background:${STATUS_COLOR.Pass}"></i>Best.</span><span><i style="background:${STATUS_COLOR.Fail}"></i>Fehlg.</span><span><i style="background:${STATUS_COLOR.Blocked}"></i>Block.</span><span><i style="background:${STATUS_COLOR.NotRun}"></i>Offen</span></span>
+    </div>
+    <div class="matrix-wrap"><table class="matrix"><thead><tr><th class="corner">Requirement \\ Testfall</th>${head}</tr></thead><tbody>${body}</tbody></table></div>
+    <p class="hint" style="margin-top:10px">Tipp: Filter nutzen oder „nur Verknüpfte". Rote Req-ID = ohne Testfall.</p>`;
+  },
+  bindMatrix(){ const re=document.getElementById("mxReq"),te=document.getElementById("mxTc");
+    re.oninput=e=>{this.filters.mxReq=e.target.value;const p=e.target.selectionStart;this.render();const n=document.getElementById("mxReq");n.focus();n.setSelectionRange(p,p);};
+    te.oninput=e=>{this.filters.mxTc=e.target.value;const p=e.target.selectionStart;this.render();const n=document.getElementById("mxTc");n.focus();n.setSelectionRange(p,p);};
+    document.getElementById("mxLinked").onchange=e=>{this.filters.mxLinkedOnly=e.target.checked;this.render();}; },
+
+  /* ============ MODAL ============ */
+  modal(title,bodyHtml,buttons){
+    const ov=document.getElementById("overlay"),m=document.getElementById("modal");
+    m.innerHTML=`<header><h3 style="flex:1">${title}</h3><button class="icon-btn" onclick="App.closeModal()">✕</button></header>
+      <div class="content">${bodyHtml}</div><footer>${buttons.map((b,i)=>`<button class="btn ${b.cls||''}" data-i="${i}">${b.label}</button>`).join("")}</footer>`;
+    m.querySelectorAll("footer button").forEach((btn,i)=>btn.onclick=buttons[i].fn);
+    ov.classList.add("open");
+    const ps=document.getElementById("pkSearch");
+    if(ps&&this._draft)ps.oninput=e=>{this._pkSearch=e.target.value;document.getElementById("pkList").innerHTML=this.pkList(this._draft.reqIds,e.target.value);};
+  },
+  closeModal(){ document.getElementById("overlay").classList.remove("open"); this._draft=null; },
+
+  /* ============ IMPORT / EXPORT ============ */
+  importDialog(){
+    this.modal("Testspec importieren (CSV/XLSX)", `
+      <div class="hint">Zwei separate Dateien: <b>Requirements</b> und <b>Testfälle</b>. <code>.csv</code> oder <code>.xlsx</code>. Spalten werden über die Kopfzeile erkannt (deutsch/englisch).</div>
+      <div class="field"><label>Requirements</label><div style="display:flex;gap:8px"><input type="file" id="impReq" accept=".csv,.xlsx,.xls"><button class="btn" onclick="App.runImport('req')">Einlesen</button></div>
+        <span style="font-size:11.5px;color:var(--muted)">Spalten: ID · Titel/Text</span></div>
+      <div class="field"><label>Testfälle</label><div style="display:flex;gap:8px"><input type="file" id="impTc" accept=".csv,.xlsx,.xls"><button class="btn" onclick="App.runImport('tc')">Einlesen</button></div>
+        <span style="font-size:11.5px;color:var(--muted)">Spalten: ID · Titel · Status · Priorität · <b>Verknüpfte Reqs</b> · <b>C-Datei</b> · <b>Funktion</b> · Zeile · Schritte · Erwartet</span></div>
+      <div class="hint">So kommt die Zuordnung aus dem Excel: <code>Verknüpfte Reqs</code> = ID-Liste (<code>;</code>/<code>,</code>/<code>|</code>), optional <code>C-Datei</code>+<code>Funktion</code> verknüpfen Testfall→Code. Vorhandene IDs werden aktualisiert (Merge).</div>`,
+      [{label:"Fertig",cls:"primary",fn:()=>{this.closeModal();this.render();}}]);
+  },
+  runImport(kind){
+    const inp=document.getElementById(kind==='req'?'impReq':'impTc'); const file=inp.files[0];
+    if(!file){this.toast("Bitte zuerst eine Datei wählen");return;}
+    const ext=file.name.split('.').pop().toLowerCase();
+    const handle=rows=>kind==='req'?this.mergeReqs(rows):this.mergeTcs(rows);
+    if(ext==='csv'){ const rd=new FileReader(); rd.onload=e=>{try{handle(parseCSV(e.target.result));}catch(err){this.toast("CSV-Fehler: "+err.message);}}; rd.readAsText(file,'utf-8'); }
+    else{ ensureXLSX().then(XLSX=>{ const rd=new FileReader(); rd.onload=e=>{try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'}); const ws=wb.Sheets[wb.SheetNames[0]];
+      handle(rowsFromMatrix(XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:""})));
+    }catch(err){this.toast("XLSX-Fehler: "+err.message);}}; rd.readAsArrayBuffer(file); }).catch(()=>this.toast("XLSX-Lib nicht ladbar (offline?). Bitte CSV nutzen.")); }
+  },
+  mergeReqs(rows){ let a=0,u=0;
+    rows.forEach(row=>{ const id=pick(row,["id","req","req-id","requirement","requirement id","anforderung","objekt-id","object id","object identifier"]);
+      const title=pick(row,["title","titel","text","beschreibung","name","requirement text","anforderungstext"]);
+      if(!id)return; const ex=this.reqById(id.trim());
+      if(ex){if(title)ex.title=title;u++;} else{this.state.requirements.push({id:id.trim(),title:title||id.trim(),text:pick(row,["details","note","notiz","kommentar"])||""});a++;} });
+    this.persist(); this.render(); this.toast(`Requirements: ${a} neu, ${u} aktualisiert`); },
+  mergeTcs(rows){ let a=0,u=0;
+    rows.forEach(row=>{ const id=pick(row,["id","tc","tc-id","testcase","test case","testfall","testfall-id","test id"]); if(!id)return;
+      const reqRaw=pick(row,["reqs","requirements","verknüpfte reqs","verknuepfte reqs","links","requirement","anforderungen","abdeckung","trace","verlinkung","linked requirements","req-id","req-ids"]);
+      const reqIds=reqRaw?reqRaw.split(/[;,|]+/).map(s=>s.trim()).filter(Boolean):[];
+      const cfile=pick(row,["c-datei","c datei","datei","file","source","quelldatei","modul","sourcefile"]);
+      const cfn=pick(row,["funktion","function","func","methode","method"]);
+      const ls=pick(row,["zeile von","zeile","line","line from","start","startzeile"]); const le=pick(row,["zeile bis","line to","ende","end","endzeile"]);
+      const codeRef=(cfile||cfn)?{file:cfile||"",fn:cfn||"",lineStart:ls?parseInt(ls):null,lineEnd:le?parseInt(le):null}:null;
+      const obj={id:id.trim(),title:pick(row,["title","titel","name","summary","kurzbeschreibung","bezeichnung"])||"",
+        status:normStatus(pick(row,["status","ergebnis","result","testergebnis"])),priority:normPrio(pick(row,["priority","prio","priorität","prioritaet"])),
+        precondition:pick(row,["precondition","vorbedingung","voraussetzung"])||"",steps:pick(row,["steps","schritte","testschritte","ablauf","teststeps"])||"",
+        expected:pick(row,["expected","erwartet","erwartetes ergebnis","soll","sollergebnis"])||"",reqIds,codeRef,origin:"manual"};
+      const i=this.state.testcases.findIndex(t=>t.id===obj.id);
+      if(i>=0){this.state.testcases[i]={...this.state.testcases[i],...obj};u++;} else{this.state.testcases.push(obj);a++;} });
+    let auto=0; this.state.testcases.forEach(t=>(t.reqIds||[]).forEach(id=>{ if(!this.reqById(id)){this.state.requirements.push({id,title:id+" (auto)",text:""});auto++;} }));
+    this.reconcileCodeLinks(); this.persist(); this.render(); this.toast(`Testfälle: ${a} neu, ${u} aktualisiert${auto?`, ${auto} Reqs auto-ergänzt`:''}`); },
+
+  exportDialog(){
+    this.modal("Exportieren", `
+      <div class="hint">Das <b>modifizierte Excel</b> (.xlsx) enthält die durchgängige Verlinkung Req-ID ↔ C-Datei/Zeile ↔ Testfall über 4 Tabellenblätter.</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn primary" onclick="App.exportXLSX()">Modifiziertes Excel (.xlsx) – Traceability + Code + Tests</button>
+        <button class="btn" onclick="App.exportCSV('trace')">Traceability als CSV</button>
+        <button class="btn" onclick="App.exportCSV('tc')">Testfälle als CSV</button>
+        <button class="btn" onclick="App.exportCSV('req')">Requirements als CSV</button>
+        <button class="btn" onclick="App.saveProject()">Vollständiges Projekt (.json)</button>
+      </div>`,
+      [{label:"Schließen",cls:"",fn:()=>this.closeModal()}]);
+  },
+  traceRows(){
+    const rows=[["Req-ID","Requirement","C-Datei","Funktion","Zeile von","Zeile bis","Testfall-ID","Testfall-Titel","Status","Priorität","Beschreibung","Herkunft"]];
+    this.state.testcases.forEach(t=>{ const reqs=(t.reqIds&&t.reqIds.length)?t.reqIds:[""]; const cr=t.codeRef||{};
+      const desc=(t.steps?("Schritte: "+String(t.steps).replace(/\n/g," | ")):"")+(t.expected?("  →  Erwartet: "+t.expected):"");
+      reqs.forEach(rid=>{ const r=this.reqById(rid);
+        rows.push([rid,r?r.title:"",cr.file||"",cr.fn||"",cr.lineStart||"",cr.lineEnd||"",t.id,t.title,STATUS[t.status].label,t.priority,desc,(ORIGIN[t.origin]||ORIGIN.manual).l]); }); });
+    return rows;
+  },
+  exportCSV(kind){ let rows,name;
+    if(kind==='trace'){name="traceability.csv";rows=this.traceRows();}
+    else if(kind==='tc'){name="testfaelle.csv";rows=[["ID","Titel","Status","Priorität","Vorbedingung","Testschritte","Erwartet","Verknüpfte Reqs","C-Datei","Funktion","Zeilen","Herkunft"]];
+      this.state.testcases.forEach(t=>{const cr=t.codeRef||{};rows.push([t.id,t.title,STATUS[t.status].label,t.priority,t.precondition||"",t.steps||"",t.expected||"",(t.reqIds||[]).join("; "),cr.file||"",cr.fn||"",cr.lineStart?cr.lineStart+"–"+cr.lineEnd:"",(ORIGIN[t.origin]||ORIGIN.manual).l]);});}
+    else{name="requirements.csv";rows=[["ID","Titel","Anzahl Testfälle","Abdeckung","Verknüpfte Testfälle"]];
+      this.state.requirements.forEach(r=>{const ts=this.tcsForReq(r.id);rows.push([r.id,r.title,ts.length,ts.length?STATUS[this.reqRollup(r.id)].label:"Keine Abdeckung",ts.map(t=>t.id).join("; ")]);});}
+    downloadFile(name,toCSV(rows),"text/csv;charset=utf-8"); this.toast("CSV exportiert");
+  },
+  async exportXLSX(){
+    let XLSX; try{XLSX=await ensureXLSX();}catch(e){this.toast("XLSX-Lib nicht ladbar (offline?). Nutze CSV-Export.");return;}
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(this.traceRows()),"Traceability");
+    const reqS=[["Req-ID","Titel","Anzahl Testfälle","Abdeckung","Verknüpfte Funktionen","Verknüpfte Testfälle"]];
+    this.state.requirements.forEach(r=>{const tcs=this.tcsForReq(r.id);const fns=[];
+      this.state.codeFiles.forEach(cf=>cf.functions.forEach(fn=>{if((fn.reqIds||[]).includes(r.id))fns.push(cf.name+":"+fn.name);}));
+      reqS.push([r.id,r.title,tcs.length,tcs.length?STATUS[this.reqRollup(r.id)].label:"Keine",fns.join("; "),tcs.map(t=>t.id).join("; ")]);});
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(reqS),"Requirements");
+    const codeS=[["C-Datei","Funktion","Signatur","Zeile von","Zeile bis","Verzweigungen","Req-IDs","Testfälle"]];
+    this.state.codeFiles.forEach(cf=>cf.functions.forEach(fn=>{const tcs=this.tcsForFn(cf.name,fn.name);
+      codeS.push([cf.name,fn.name,fn.signature,fn.lineStart,fn.lineEnd,fn.decisions,(fn.reqIds||[]).join("; "),tcs.map(t=>t.id).join("; ")]);}));
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(codeS),"Code-Funktionen");
+    const tcS=[["Testfall-ID","Titel","Status","Priorität","Vorbedingung","Testschritte","Erwartet","Req-IDs","C-Datei","Funktion","Zeilen","Herkunft"]];
+    this.state.testcases.forEach(t=>{const cr=t.codeRef||{};
+      tcS.push([t.id,t.title,STATUS[t.status].label,t.priority,t.precondition||"",t.steps||"",t.expected||"",(t.reqIds||[]).join("; "),cr.file||"",cr.fn||"",cr.lineStart?cr.lineStart+"–"+cr.lineEnd:"",(ORIGIN[t.origin]||ORIGIN.manual).l]);});
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(tcS),"Testfälle");
+    XLSX.writeFile(wb,(this.state.meta.name||"testspec").replace(/\s+/g,"_")+".xlsx");
+    this.toast("Excel exportiert (4 Blätter)");
+  },
+
+  saveProject(){
+    if(!this.state.meta.name||this.state.meta.name==="Neues Projekt"){const n=prompt("Projektname:",this.state.meta.name||"Testprojekt");if(n)this.state.meta.name=n;}
+    this.state.meta.modified=new Date().toISOString();
+    downloadFile((this.state.meta.name||"projekt").replace(/\s+/g,"_")+".json",JSON.stringify(this.state,null,2),"application/json");
+    this.persist(); document.getElementById("overlay").classList.remove("open"); this.render(); this.toast("Projekt gespeichert");
+  },
+  loadProject(){ const inp=document.createElement("input");inp.type="file";inp.accept=".json";
+    inp.onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();
+      rd.onload=ev=>{try{const obj=JSON.parse(ev.target.result);if(!obj.requirements||!obj.testcases)throw new Error("Unerwartetes Format");
+        if(!obj.codeFiles)obj.codeFiles=[]; if(!obj.settings)obj.settings={model:"claude-sonnet-4-6"};
+        this.state=obj;this.persist();this.render();this.toast("Projekt geladen");}catch(err){this.toast("Fehler: "+err.message);}};
+      rd.readAsText(f,'utf-8');}; inp.click(); },
+  menu(){ this.modal("Weiteres", `
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button class="btn" onclick="App.renameProject()">Projekt umbenennen</button>
+        <button class="btn" onclick="App.generateSkeletons(true)">Skeletons je Branch erzeugen</button>
+        <button class="btn" onclick="App.loadSample(false)">Beispieldaten laden (ersetzt aktuelle)</button>
+        <button class="btn danger" onclick="App.clearAll()">Alle Daten löschen</button>
+      </div>
+      <div class="hint">Daten liegen lokal (localStorage) + in deiner <code>.json</code>. Es werden keine Daten ins Netz übertragen (außer bei aktiver KI an api.anthropic.com).</div>`,
+      [{label:"Schließen",cls:"primary",fn:()=>this.closeModal()}]); },
+  renameProject(){ const n=prompt("Projektname:",this.state.meta.name||"");if(n!==null){this.state.meta.name=n;this.persist();this.closeModal();this.render();} },
+  clearAll(){ if(confirm("Wirklich ALLE Daten löschen?")){this.state={meta:{name:"Neues Projekt"},requirements:[],testcases:[],codeFiles:[],settings:{model:"claude-sonnet-4-6"}};this.persist();this.closeModal();this.render();this.toast("Alles gelöscht");} },
+
+  loadSample(silent){
+    const src=`/* scr_dosing.c – SCR AdBlue-Dosierung (Beispiel) */
+#include <stdint.h>
+
+/* Dosiermenge in mg/s aus Temperatur und NOx-Rohemission */
+uint16_t scr_calc_dose(int16_t temp_c, uint16_t nox_ppm)
+{
+    if (temp_c < 200) {          /* zu kalt: keine Dosierung */
+        return 0u;
+    }
+    if (temp_c > 480) {          /* Übertemperatur: Abbruch */
+        return 0u;
+    }
+    uint16_t dose = (uint16_t)((uint32_t)nox_ppm * 3u / 100u);
+    if (dose > 1000u) {
+        dose = 1000u;            /* Begrenzung */
+    }
+    return dose;
+}
+
+/* Plausibilisierung der NOx-Sensoren stromauf/stromab */
+uint8_t nox_sensor_plausible(uint16_t up, uint16_t down)
+{
+    if (up == 0u && down == 0u) {
+        return 0u;               /* beide tot */
+    }
+    if (down > up) {
+        return 0u;               /* unplausibel */
+    }
+    return 1u;
+}`;
+    const cf={name:"scr_dosing.c",source:src,functions:parseFunctions(src)};
+    cf.functions.forEach(fn=>{ if(fn.name==='scr_calc_dose')fn.reqIds=['REQ-001','REQ-004']; if(fn.name==='nox_sensor_plausible')fn.reqIds=['REQ-002']; });
+    const f1=cf.functions.find(f=>f.name==='scr_calc_dose')||{}; const f2=cf.functions.find(f=>f.name==='nox_sensor_plausible')||{};
+    this.state={ meta:{name:"Beispiel · Abgasnachbehandlung"}, settings:{model:"claude-sonnet-4-6"}, codeFiles:[cf],
+      requirements:[
+        {id:"REQ-001",title:"SCR-Dosiermenge bei Betriebstemperatur regeln",text:"Dosiermenge im Bereich 200–480 °C aus NOx ableiten."},
+        {id:"REQ-002",title:"NOx-Sensor Plausibilisierung",text:"Signale stromauf/stromab plausibilisieren."},
+        {id:"REQ-003",title:"Diagnose bei AdBlue-Tank leer",text:"Bei leerem Tank DTC setzen und Warnkette starten."},
+        {id:"REQ-004",title:"Dosierabbruch bei Übertemperatur",text:"Oberhalb 480 °C Dosierung abbrechen."},
+        {id:"REQ-005",title:"Aufheizstrategie nach Kaltstart",text:"Light-off innerhalb definierter Zeit."}],
+      testcases:[
+        {id:"TC-001",title:"Dosierung im Sollbereich 250 °C",status:"Pass",priority:"Hoch",precondition:"Motor warm",steps:"1. temp=250, nox=400\n2. scr_calc_dose aufrufen",expected:"Dosis = 12",reqIds:["REQ-001"],codeRef:{file:"scr_dosing.c",fn:"scr_calc_dose",lineStart:f1.lineStart,lineEnd:f1.lineEnd},origin:"manual"},
+        {id:"TC-002",title:"NOx-Sensor Drift erkennen",status:"Fail",priority:"Hoch",precondition:"",steps:"down>up setzen",expected:"Rückgabe 0 (unplausibel)",reqIds:["REQ-002"],codeRef:{file:"scr_dosing.c",fn:"nox_sensor_plausible",lineStart:f2.lineStart,lineEnd:f2.lineEnd},origin:"manual"},
+        {id:"TC-003",title:"Tank-leer Warnkette",status:"NotRun",priority:"Mittel",precondition:"Füllstand 0%",steps:"Füllstand 0 simulieren",expected:"DTC + Warnung",reqIds:["REQ-003"],codeRef:null,origin:"manual"},
+        {id:"TC-004",title:"Dosierabbruch bei 500 °C",status:"Blocked",priority:"Hoch",precondition:"HiL",steps:"temp=500",expected:"Dosis = 0",reqIds:["REQ-001","REQ-004"],codeRef:{file:"scr_dosing.c",fn:"scr_calc_dose",lineStart:f1.lineStart,lineEnd:f1.lineEnd},origin:"manual"},
+        {id:"TC-005",title:"Kaltstart Light-off Zeit",status:"Pass",priority:"Mittel",precondition:"Start -7 °C",steps:"Kaltstart",expected:"Light-off < 120 s",reqIds:["REQ-005"],codeRef:null,origin:"manual"}]};
+    this.persist(); if(!silent){document.getElementById("overlay").classList.remove("open");this.tab="dash";this.render();this.toast("Beispieldaten geladen");}
+  },
+
+  toast(msg){ const t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");clearTimeout(this._tt);this._tt=setTimeout(()=>t.classList.remove("show"),2400); }
+};
+
+/* ===================== Utils ===================== */
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function pick(row,keys){ for(const k of keys){const kk=k.toLowerCase();if(row[kk]!=null&&String(row[kk]).trim()!=="")return String(row[kk]).trim();} return ""; }
+function normStatus(s){ s=(s||"").toLowerCase().trim();
+  if(/pass|bestanden|ok|grün|gruen|i\.?o\.?|success/.test(s))return"Pass";
+  if(/fail|fehl|durchgefallen|nok|n\.?i\.?o\.?|rot|error/.test(s))return"Fail";
+  if(/block|geblockt|gesperrt/.test(s))return"Blocked"; return"NotRun"; }
+function normPrio(s){ s=(s||"").toLowerCase().trim();
+  if(/hoch|high|^1$|^h$/.test(s))return"Hoch"; if(/niedrig|low|^3$|^n$|^l$/.test(s))return"Niedrig"; return"Mittel"; }
+function parseCSV(text){ text=text.replace(/^\uFEFF/,"");
+  const first=text.split("\n")[0]; const delim=first.split(";").length>first.split(",").length?";":",";
+  const rows=[];let row=[],cur="",q=false;
+  for(let i=0;i<text.length;i++){const c=text[i];
+    if(q){if(c==='"'){if(text[i+1]==='"'){cur+='"';i++;}else q=false;}else cur+=c;}
+    else{if(c==='"')q=true;else if(c===delim){row.push(cur);cur="";}else if(c==='\n'){row.push(cur);rows.push(row);row=[];cur="";}else if(c==='\r'){}else cur+=c;}}
+  if(cur!==""||row.length){row.push(cur);rows.push(row);} return rowsFromMatrix(rows); }
+function rowsFromMatrix(matrix){ matrix=matrix.filter(r=>r.some(c=>String(c).trim()!=="")); if(!matrix.length)return[];
+  const headers=matrix[0].map(h=>String(h).trim().toLowerCase());
+  return matrix.slice(1).map(r=>{const o={};headers.forEach((h,i)=>o[h]=r[i]!=null?String(r[i]):"");return o;}); }
+function toCSV(rows){ return rows.map(r=>r.map(c=>{c=String(c==null?"":c);return /[",;\n]/.test(c)?'"'+c.replace(/"/g,'""')+'"':c;}).join(";")).join("\r\n"); }
+function downloadFile(name,content,type){ const blob=new Blob([content],{type}),url=URL.createObjectURL(blob);
+  const a=document.createElement("a");a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1500); }
+let _xlsx=null;
+function ensureXLSX(){ if(_xlsx)return Promise.resolve(_xlsx); if(window.XLSX){_xlsx=window.XLSX;return Promise.resolve(_xlsx);}
+  return new Promise((res,rej)=>{const s=document.createElement("script");
+    s.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    s.onload=()=>{_xlsx=window.XLSX;res(_xlsx);};s.onerror=rej;document.head.appendChild(s);}); }
+
+/* ---- C parsing (heuristic) ---- */
+function sanitizeC(src){ // blank comments/strings/chars, keep newlines & length
+  let out="",i=0;const n=src.length;let st=0; // 0 normal,1 //,2 /* */,3 " 4 '
+  while(i<n){const c=src[i],c2=src[i+1];
+    if(st===0){ if(c==='/'&&c2==='/'){st=1;out+="  ";i+=2;continue;}
+      if(c==='/'&&c2==='*'){st=2;out+="  ";i+=2;continue;}
+      if(c==='"'){st=3;out+=' ';i++;continue;} if(c==="'"){st=4;out+=' ';i++;continue;}
+      out+=c;i++; }
+    else if(st===1){ if(c==='\n'){st=0;out+='\n';}else out+=' '; i++; }
+    else if(st===2){ if(c==='*'&&c2==='/'){st=0;out+="  ";i+=2;}else{out+=(c==='\n'?'\n':' ');i++;} }
+    else if(st===3){ if(c==='\\'){out+="  ";i+=2;}else if(c==='"'){st=0;out+=' ';i++;}else{out+=(c==='\n'?'\n':' ');i++;} }
+    else{ if(c==='\\'){out+="  ";i+=2;}else if(c==="'"){st=0;out+=' ';i++;}else{out+=(c==='\n'?'\n':' ');i++;} } }
+  return out;
+}
+function parseFunctions(src){
+  const clean=sanitizeC(src); const starts=[]; let acc=0; const lines=src.split("\n");
+  for(let k=0;k<lines.length;k++){starts.push(acc);acc+=lines[k].length+1;}
+  const lineAt=idx=>{let lo=0,hi=starts.length-1;while(lo<hi){const m=(lo+hi+1)>>1;if(starts[m]<=idx)lo=m;else hi=m-1;}return lo+1;};
+  const kw=new Set(["if","for","while","switch","return","sizeof","else","do","case","typedef","struct","union","enum","static_assert"]);
+  const re=/(?:^|[;}{)\s])((?:[A-Za-z_]\w*[\s\*]+)+)([A-Za-z_]\w*)\s*\(([^;{}]*)\)\s*\{/g;
+  const fns=[];let m;
+  while((m=re.exec(clean))){
+    const name=m[2]; if(kw.has(name)){re.lastIndex=m.index+m[0].length;continue;}
+    let ret=(m[1]||"").trim().replace(/\s+/g," ");
+    if(/^(else|return|typedef)\b/.test(ret)){re.lastIndex=m.index+m[0].length;continue;}
+    const openBrace=m.index+m[0].length-1; let depth=0,end=-1;
+    for(let j=openBrace;j<clean.length;j++){const ch=clean[j];if(ch==='{')depth++;else if(ch==='}'){depth--;if(depth===0){end=j;break;}}}
+    if(end<0)end=clean.length-1;
+    const sigStart=clean.slice(m.index).search(/[A-Za-z_]/)+m.index;
+    const lineStart=lineAt(sigStart),lineEnd=lineAt(end);
+    const body=clean.slice(openBrace,end);
+    const decisions=(body.match(/\b(if|for|while|case)\b/g)||[]).length+(body.match(/&&|\|\|/g)||[]).length;
+    const params=(m[3]||"").trim().replace(/\s+/g," ");
+    fns.push({name,returnType:ret,params,signature:(ret?ret+" ":"")+name+"("+params+")",lineStart,lineEnd,decisions,branches:decisions,reqIds:[]});
+    re.lastIndex=end;
+  }
+  return fns;
+}
+
+/* ---- Anthropic API (optional, eigener Key, Direktzugriff aus dem Browser) ---- */
+async function callAnthropic(messages,system,maxTokens){
+  const key=localStorage.getItem(LS_AIKEY); if(!key)throw new Error("Kein API-Key hinterlegt");
+  const res=await fetch("https://api.anthropic.com/v1/messages",{ method:"POST",
+    headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+    body:JSON.stringify({model:App.state.settings.model||"claude-sonnet-4-6",max_tokens:maxTokens||1500,system,messages}) });
+  if(!res.ok){const t=await res.text();throw new Error("API "+res.status+": "+t.slice(0,180));}
+  const data=await res.json();
+  return (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n");
+}
+
+document.getElementById("overlay").addEventListener("click",e=>{if(e.target.id==="overlay")App.closeModal();});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")App.closeModal();});
+App.init();
+</script>
+</body>
+</html>
