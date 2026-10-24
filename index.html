@@ -565,6 +565,9 @@ footer.foot{position:relative;z-index:1;max-width:var(--max);margin:0 auto;paddi
 .pk-chg .pk-id{font-family:var(--display);font-weight:700;font-size:14px;font-variation-settings:'wdth' 108}
 .pk-hint{margin:0;display:flex;flex-wrap:wrap;gap:4px 16px;justify-content:space-between;padding:8px 14px;border-top:1px solid var(--line);font-size:11px;color:var(--text-3);font-family:var(--mono)}
 .pk-empty{padding:16px;color:var(--text-3);font-size:13px;margin:0}
+
+.hintli b{color:var(--text-2);font-weight:500}
+.hintsec h3{color:var(--text-2)}
 </style>
 </head>
 <body>
@@ -633,7 +636,7 @@ footer.foot{position:relative;z-index:1;max-width:var(--max);margin:0 auto;paddi
       </section>
       <template class="hhelp"><p><b>Ebene 3 · System</b> prüft das Zusammenspiel über Clustergrenzen: wie ein Nachbarcluster auf das reagiert, was der Ursprung liefert.</p><h3>Wann ein Systemtest nötig ist</h3><ol class="rules">
           <li><b>Kette verfolgen</b><span>Liest ein Prozess eine betroffene Message, sind alle Messages betroffen, die dieser Prozess schreibt. Jede Clustergrenze ist eine Stufe, die Wirktiefe begrenzt die Stufen.</span></li>
-          <li><b>Grenze entscheidet</b><span>Jede überschrittene Clustergrenze braucht einen Systemtest. Er prüft, wie der Nachbarcluster reagiert, was weder Komponenten- noch Clustertest wegen ihrer Stubs sehen können.</span></li>
+          <li><b>Grenze entscheidet</b><span>Pflicht sind die unmittelbaren Clustergrenzen und jede Grenze, über die die Wirkung zum Ursprung zurückkommt. Grenzen weiter hinten sind ein Hinweis: grau angezeigt, Tests dort empfohlen, sie zählen nicht in den Status. Der Systemtest prüft, wie der Nachbarcluster reagiert, was weder Komponenten- noch Clustertest wegen ihrer Stubs sehen können.</span></li>
           <li><b>Risiko gewichten</b><span>Priorität hoch bei Rückkopplung zum Ursprung, Funktionsaufruf über die Grenze, Rastersprung, Variantenbedingung oder physikalischer Strecke.</span></li>
           <li><b>Abdeckung prüfen</b><span>Ein Systemtest deckt eine Grenze ab, wenn er die Schnittstellen-Message misst und eine Reaktion im lesenden Cluster beobachtet. Status: fehlt · Spezifikation anpassen · erneut ausführen · fehlgeschlagen · nicht ausgeführt · aktuell.</span></li>
         </ol></template>
@@ -5223,11 +5226,14 @@ function ktEntry(r,ctx){
   return {r,k,st,why,role};
 }
 const writesOf=c=>new Set(COMP.get(c).procs.flatMap(p=>p.W));
+/* Pflicht sind nur unmittelbare Clustergrenzen und Grenzen, über die die Wirkung zum Ursprung zurückkommt.
+   Mittelbare Grenzen weiter hinten sind Hinweis: Tests dort werden empfohlen, zählen aber nicht in den Status. */
 function tStatus(t,ctx){
-  const linkedChg=t.reqs.filter(id=>ctx.chgIds.has(id)),onPath=ctx.cross.filter(f=>covers(t,f));
-  const relevant=onPath.length>0||t.reqs.some(id=>ctx.reqIds.has(id));
-  const affected=ctx.chgIds.size>0&&(onPath.length>0||linkedChg.length>0);
-  return {st:ladder(t,linkedChg,affected),relevant,linkedChg,onPath};
+  const linkedChg=t.reqs.filter(id=>ctx.chgIds.has(id)),onPath=ctx.cross.filter(f=>covers(t,f)),onReq=onPath.filter(f=>f.req);
+  const relevant=onReq.length>0||t.reqs.some(id=>ctx.reqIds.has(id));
+  const hint=!relevant&&onPath.length>0;
+  const affected=ctx.chgIds.size>0&&(onReq.length>0||linkedChg.length>0);
+  return {st:ladder(t,linkedChg,affected),relevant,hint,linkedChg,onPath};
 }
 function ladder(t,linkedChg,affected){
   if(t.res==="fail")return "fail";
@@ -5255,8 +5261,8 @@ function tWhy(t,s){
   return t.stand===CUR?`${CUR} bestanden`:(s.relevant?`${t.stand} bestanden, nicht von einer Änderung betroffen`:`${t.stand} bestanden`);
 }
 const worst=a=>a.includes("miss")?"miss":a.includes("open")?"open":a.length?"ok":null;
-const X_TXT={miss:"fehlt",open:"offen",ok:"abgedeckt"};
-const X_CLS={miss:"bad",open:"warn",ok:"ok"};
+const X_TXT={miss:"fehlt",open:"offen",ok:"abgedeckt",hint:"mittelbar"};
+const X_CLS={miss:"bad",open:"warn",ok:"ok",hint:"off"};
 
 /* Regel 3 und 4: Urteil mit Gründen */
 function verdict(imp){
@@ -5304,23 +5310,27 @@ function buildCtx(reqs){
   ctx.cNeed=ctx.intra0.length>0;ctx.cWorst=worst(ctx.intra0.map(e=>e.cst));
   ctx.cOpen=CTESTS.filter(t=>{const x=ctx.ctst.get(t.id);return x.relevant&&x.st!=="ok"}).sort((a,b)=>SEV[ctx.ctst.get(a.id).st]-SEV[ctx.ctst.get(b.id).st]||a.id.localeCompare(b.id));
   ctx.cGaps=ctx.intra0.filter(e=>e.cst==="miss");
+  for(const f of imp.crossings)f.req=f.h===1||imp.origins.has(f.b);
+  ctx.crossReq=imp.crossings.filter(f=>f.req);
   ctx.tst=new Map(TESTS.map(t=>[t.id,tStatus(t,ctx)]));
   const xs=cov=>!cov.length?"miss":cov.some(id=>ctx.tst.get(id).st==="ok")?"ok":"open";
   for(const f of imp.crossings){f.cov=covOf(f);f.st=xs(f.cov)}
   ctx.xs=xs;
   ctx.pairs=new Map();
   for(const f of imp.crossings){const k=f.a+">"+f.b;if(!ctx.pairs.has(k))ctx.pairs.set(k,{a:f.a,b:f.b,items:[],h:f.h});const p=ctx.pairs.get(k);p.items.push(f);p.h=Math.min(p.h,f.h)}
-  for(const p of ctx.pairs.values())p.st=worst(p.items.map(f=>f.st));
+  for(const p of ctx.pairs.values()){const rq=p.items.filter(f=>f.req);p.req=rq.length>0;p.st=p.req?worst(rq.map(f=>f.st)):"hint";p.hintMiss=p.items.filter(f=>!f.req&&f.st==="miss").length}
   ctx.cl=new Map();
   for(const cl of CLUSTERS){
-    const inc=imp.crossings.filter(f=>f.b===cl),bad=inc.filter(f=>f.st!=="ok");
-    ctx.cl.set(cl,{isO:imp.origins.has(cl),hop:imp.clHop.get(cl),st:worst(inc.map(f=>f.st)),
+    const all=imp.crossings.filter(f=>f.b===cl),inc=all.filter(f=>f.req),bad=inc.filter(f=>f.st!=="ok");
+    ctx.cl.set(cl,{isO:imp.origins.has(cl),hop:imp.clHop.get(cl),st:inc.length?worst(inc.map(f=>f.st)):all.length?"hint":null,
       miss:uniq(inc.filter(f=>f.st==="miss").map(f=>f.m)).length,
       openT:uniq(bad.filter(f=>f.st==="open").flatMap(f=>f.cov)).length,inc});
   }
   ctx.v=verdict(imp);
   ctx.open=TESTS.filter(t=>{const s=ctx.tst.get(t.id);return s.relevant&&s.st!=="ok"}).sort((a,b)=>SEV[ctx.tst.get(a.id).st]-SEV[ctx.tst.get(b.id).st]||a.id.localeCompare(b.id));
-  ctx.gaps=[...ctx.pairs.values()].map(p=>({p,items:p.items.filter(f=>f.st==="miss")})).filter(g=>g.items.length);
+  ctx.gaps=[...ctx.pairs.values()].map(p=>({p,items:p.items.filter(f=>f.req&&f.st==="miss")})).filter(g=>g.items.length);
+  ctx.hintGaps=imp.crossings.filter(f=>!f.req&&f.st==="miss");
+  ctx.hintTests=TESTS.filter(t=>{const s=ctx.tst.get(t.id);return s.hint&&s.st!=="ok"});
   return ctx;
 }
 /* Vorschlag für einen fehlenden Systemtest: Message anregen, Reaktion des lesenden Prozesses beobachten */
@@ -5355,10 +5365,10 @@ function hlText(t){let h=esc(t);for(const m of [...MSGS].sort((a,b)=>b.length-a.
 const msgChip=(f,extra)=>`<span class="chip${extra?" "+extra:""}" title="${esc(f.from+" → "+f.to+(f.cond?" · nur wenn "+f.cond:""))}">${esc(f.m)}${f.kind==="call"?" ƒ":""}${f.kind==="phys"?" ≈":""}${f.cond?" ◇":""}</span>`;
 const tChip=id=>{const s=S.ctx.tst.get(id);return `<span class="chip" title="${esc(TEST.get(id).t)}">${esc(id)} <span class="st ${ST_CLS[s.st]}" style="margin-left:2px">${ST_TXT[s.st]}</span></span>`};
 const ctChip=id=>{const s=S.ctx.ctst.get(id);return `<span class="chip" title="${esc(CTEST.get(id).t)}">${esc(id)} <span class="st ${ST_CLS[s.st]}" style="margin-left:2px">${ST_TXT[s.st]}</span></span>`};
-const SEVX={miss:0,open:1,ok:2};
+const SEVX={miss:0,open:1,ok:2,hint:3};
 function vSum(C){
-  const g=C.gaps.reduce((a,x)=>a+x.items.length,0),o=C.open.length,n=C.pairs.size;
-  return `${n} Clustergrenze${n>1?"n":""} auf der Wirkkette. `+(g?`${g} Schnittstelle${g>1?"n":""} ohne Systemtest`:"Jede Schnittstelle hat einen Systemtest")+(o?`, ${o} Systemtest${o>1?"s":""} offen.`:g?".":", alle aktuell.");
+  const g=C.gaps.reduce((a,x)=>a+x.items.length,0),o=C.open.length,n=[...C.pairs.values()].filter(p=>p.req).length,m=C.pairs.size-n;
+  return `${n} Pflichtgrenze${n>1?"n":""}${m?`, ${m} mittelbar`:""}. `+(g?`${g} Schnittstelle${g>1?"n":""} ohne Systemtest`:"Jede Pflichtgrenze hat einen Systemtest")+(o?`, ${o} Systemtest${o>1?"s":""} offen.`:g?".":", alle aktuell.");
 }
 
 /* Status der drei Ebenen für einen Kontext: [System, Cluster, Komponente] */
@@ -5473,15 +5483,18 @@ function renderSys(){
   }
   if(C.pairs.size){
     const ps=[...C.pairs.values()].sort((a,b)=>a.h-b.h||(SEVX[a.st]-SEVX[b.st])||CLUSTERS.indexOf(a.a)-CLUSTERS.indexOf(b.a));
-    h+=`<div class="sec"><h3>Über Clustergrenzen <span class="sub">${ps.length} Grenze${ps.length>1?"n":""}</span></h3><ul class="lst">${ps.map(p=>{
+    const nr=ps.filter(p=>p.req).length;
+    h+=`<div class="sec"><h3>Über Clustergrenzen <span class="sub">${nr} Pflicht${ps.length>nr?` · ${ps.length-nr} mittelbar`:""}</span></h3><ul class="lst">${ps.map(p=>{
       const tests=uniq(p.items.flatMap(f=>f.cov));
-      return `<li class="click" tabindex="0" data-pair="${esc(p.a+">"+p.b)}"><div class="lh"><i class="dot ${p.st}"></i><b>${esc(p.a)} → ${esc(p.b)}</b><span class="sub">${p.h===1?"unmittelbar":"Stufe "+p.h}</span><span class="st ${X_CLS[p.st]}">${X_TXT[p.st]}</span></div>
-        <div class="chips">${uniqBy(p.items,f=>f.m).map(f=>msgChip(f,p.items.some(x=>x.m===f.m&&x.st==="miss")?"miss":"")).join("")}</div>
+      const why=p.h===1?"unmittelbar":C.imp.origins.has(p.b)?"zurück zum Ursprung":"Stufe "+p.h;
+      return `<li class="click${p.req?"":" hintli"}" tabindex="0" data-pair="${esc(p.a+">"+p.b)}"><div class="lh"><i class="dot ${p.st}"></i><b>${esc(p.a)} → ${esc(p.b)}</b><span class="sub">${why}</span><span class="st ${X_CLS[p.st]}">${p.req?X_TXT[p.st]:p.hintMiss?"Hinweis · ohne Test":"Hinweis"}</span></div>
+        <div class="chips">${uniqBy(p.items,f=>f.m).map(f=>msgChip(f,p.items.some(x=>x.m===f.m&&x.req&&x.st==="miss")?"miss":"")).join("")}</div>
         ${tests.length?`<span class="sub">geprüft von ${tests.map(id=>`${esc(id)} (${ST_TXT[C.tst.get(id).st]})`).join(", ")}</span>`:'<span class="sub">kein Systemtest prüft diese Grenze</span>'}</li>`}).join("")}</ul></div>`;
   }
   if(C.open.length)h+=`<div class="sec"><h3>Offene Systemtests <span class="sub">${C.open.length}</span></h3><ul class="lst">${C.open.map(t=>{const x=C.tst.get(t.id);
       return `<li><div class="lh"><span class="tid">${esc(t.id)}</span><span>${esc(t.t)}</span><span class="st ${ST_CLS[x.st]}">${ST_TXT[x.st]}</span></div><span class="sub">${esc(tWhy(t,x))} · ${esc(t.env)}</span></li>`}).join("")}</ul></div>`;
   if(C.gaps.length)h+=`<div class="sec"><h3>Fehlende Systemtests <span class="sub">${C.gaps.length}</span></h3><ul class="lst">${C.gaps.map(g=>`<li class="click" tabindex="0" data-pair="${esc(g.p.a+">"+g.p.b)}"><div class="prop"><b>Neu: ${esc(g.p.a)} → ${esc(g.p.b)}</b><br>${g.items.map(f=>{const pr=proposal(f);return `${esc(pr.stim)} anregen${pr.obs.length?", "+pr.obs.map(esc).join(" und ")+" beobachten":""}${f.cond?` · in Variante ${esc(f.cond)}`:""}`}).join("<br>")}</div></li>`).join("")}</ul></div>`;
+  if(C.hintTests.length||C.hintGaps.length)h+=`<div class="sec hintsec"><h3>Empfohlen <span class="sub">mittelbar, zählt nicht in den Status</span></h3><ul class="lst">${C.hintTests.map(t=>{const x=C.tst.get(t.id);return `<li><div class="lh"><span class="tid">${esc(t.id)}</span><span>${esc(t.t)}</span><span class="st off">${ST_TXT[x.st]}</span></div></li>`}).join("")}${C.hintGaps.length?`<li><span class="sub">${uniq(C.hintGaps.map(f=>f.a+" → "+f.b)).length} mittelbare Grenze${uniq(C.hintGaps.map(f=>f.a+" → "+f.b)).length>1?"n":""} ohne Systemtest: ${esc(uniq(C.hintGaps.map(f=>f.a+" → "+f.b)).join(", "))}</span></li>`:""}</ul></div>`;
   $("#evalSys").innerHTML=h;
 }
 
@@ -5614,6 +5627,7 @@ function clLabel(cl){
   if(x.st==="miss")L.push(`⚠ ${x.miss} fehlt${x.openT?` · ${x.openT} offen`:""}`);
   else if(x.st==="open")L.push(`⚠ ${x.openT} Test${x.openT>1?"s":""} offen`);
   else if(x.st==="ok")L.push("✓ abgedeckt");
+  else if(x.st==="hint")L.push("mittelbar");
   return L.join("\n");
 }
 function clClass(cl){const x=S.ctx.cl.get(cl),imp=x.hop!=null;return ["cl",imp?"":"faded",x.isO?"origin":"",x.st?"s-"+x.st:"",x.isO&&!x.st?"oplain":"",x.hop>=2&&!x.isO?"far":""].filter(Boolean).join(" ")}
@@ -5624,7 +5638,7 @@ function elements(){
   const pairs=new Map();for(const f of flows)if(f.cross){const k=f.a+">"+f.b;if(!pairs.has(k))pairs.set(k,{a:f.a,b:f.b,items:[]});pairs.get(k).items.push(f)}
   for(const [k,p] of pairs){
     const pp=C.pairs.get(k),its=pp?pp.items:p.items,n=uniq(its.map(f=>f.m)).length,call=its.some(f=>f.kind==="call"),phys=its.some(f=>f.kind==="phys");
-    const label=pp?n+(call?" ƒ":"")+(phys?" ≈":"")+(pp.st==="ok"?" ✓":" ⚠"):"";
+    const label=pp?n+(call?" ƒ":"")+(phys?" ≈":"")+(pp.st==="ok"?" ✓":pp.st==="hint"?"":" ⚠"):"";
     const only=p.items.every(f=>f.kind==="phys")?"phys":p.items.every(f=>f.kind==="call")?"call":"";
     const pa=S.mode==="req"&&S.pos?S.pos[p.a]:null,pb=pa?S.pos[p.b]:null,same=pa&&pb&&pa.x===pb.x&&Math.abs(pa.y-pb.y)>160;
     els.push({data:{id:"E:"+k,source:p.a,target:p.b,label,pair:k,cpd:same?Math.min(150,Math.abs(pa.y-pb.y)/2.6)*(pa.y<pb.y?-1:1):0},classes:[pp?"path e-"+pp.st:"faded",only,same?"same":""].filter(Boolean).join(" ")});
@@ -5651,6 +5665,8 @@ function renderGraph(){
     {selector:"edge.path.e-ok",style:{"line-color":T.text3,"target-arrow-color":T.text3}},
     {selector:"edge.path.e-open",style:{"line-color":T.over,"target-arrow-color":T.over,color:T.over}},
     {selector:"edge.path.e-miss",style:{"line-color":T.red,"target-arrow-color":T.red,color:T.red,width:3.4}},
+    {selector:"edge.path.e-hint",style:{"line-color":T.text3,"target-arrow-color":T.text3,color:T.text3,width:1.8,opacity:.7,"line-dash-pattern":[4,6]}},
+    {selector:"node.s-hint",style:{"border-color":T.text3,"border-width":1.5,"border-style":"dashed"}},
     {selector:".faded",style:{opacity:.2}},
     {selector:"edge.faded",style:{opacity:.13}},
     {selector:"node.head",style:{"background-opacity":0,"border-width":0,color:T.text3,"font-size":11,"text-transform":"uppercase","font-weight":500,events:"no",padding:"2px"}},
@@ -5821,7 +5837,7 @@ function renderTrace(){
     h+=`<tr class="cg"><th class="rh"><span>${esc(cl)}</span></th><td colspan="${col}"></td></tr>`;
     for(const r of rs){
       const c=sm.get(r.id),e=c.kt.get(r.id);let i=0;
-      const sysSt=c.v.need?worst([...c.pairs.values()].map(p=>p.st)):null;
+      const sysSt=c.v.need?worst([...c.pairs.values()].filter(p=>p.req).map(p=>p.st)):null;
       h+=`<tr class="${sel.has(r.id)?"sel":""}" data-req="${esc(r.id)}" tabindex="0"><th class="rh" title="${esc(r.t)}"><span class="tid">${esc(r.id)}</span>${r.chg?` <span class="st neu">${esc(r.chg)}</span>`:""}<span class="rt2">${esc(r.c)} · ${esc(r.t)}</span></th>`;
       h+=`<td class="sum" data-col="${i++}"><button type="button" class="sbtn" data-reqgo="${esc(r.id)}|0">${sysSt?pill(X_CLS[sysSt],X_TXT[sysSt]):'<span class="na">—</span>'}</button></td>`;
       for(const t of syt){const x=c.tst.get(t.id),ln=t.reqs.includes(r.id),via=x.onPath.length>0;
@@ -5856,7 +5872,7 @@ function renderSyt(){
     return `<tr class="${s.relevant?"rel":"irr"}"><td class="nw"><span class="tid">${esc(t.id)}</span></td><td>${esc(t.t)}<div class="sub">${t.reqs.map(esc).join(", ")}</div></td><td>${esc(t.env)}</td>
       <td><div class="chips">${pairs.map(p=>`<span class="chip${onp.has(p)?" hl":""}">${esc(p)}</span>`).join("")||'<span class="sub">keine Clustergrenze</span>'}</div></td>
       <td class="nw">${lastRun(t)}</td>
-      <td>${s.relevant?`<span class="st ${ST_CLS[s.st]}">${ST_TXT[s.st]}</span><div class="sub">${esc(tWhy(t,s))}</div>`:'<span class="st off">nicht betroffen</span>'}</td></tr>`}).join("")}</tbody></table>`;
+      <td>${s.relevant?`<span class="st ${ST_CLS[s.st]}">${ST_TXT[s.st]}</span><div class="sub">${esc(tWhy(t,s))}</div>`:s.hint?`<span class="st off">mittelbar · empfohlen</span><div class="sub">prüft nur eine Grenze weiter hinten</div>`:'<span class="st off">nicht betroffen</span>'}</td></tr>`}).join("")}</tbody></table>`;
 }
 function renderCtTbl(){
   const C=S.ctx,fl=FLOWS.filter(f=>!f.cross&&f.kind!=="phys");
