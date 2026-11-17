@@ -5038,7 +5038,7 @@ function rasterOf(p){const m=p.match(/(\d+)\s*ms$/i);return m?+m[1]:null}
    je Prozess die gelesenen (R) und geschriebenen (W) Messages. Funktionen, die über
    Komponentengrenzen aufgerufen werden, stehen als Pseudo-Prozess mit „()“ im Namen.
    „Abgasstrang“ ist eine von Hand gepflegte physikalische Kopplung, kein Code. */
-const CUR="B4",PREV="B3",bn=b=>b?+String(b).replace(/\D/g,""):0;
+let CUR="B4",PREV="B3";const bn=b=>b?+String(b).replace(/\D/g,""):0;
 const CLUSTERS=["Motor","Sensorik","Modelle","SCR","Versorgung","Diagnose","Kommunikation"];
 const PHYS=new Set(["Abgasstrang"]);
 const COMPS=[
@@ -5137,6 +5137,29 @@ const CTESTS=[
  {id:"CT-Diagnose-01",cl:"Diagnose",t:"Wirkungsgradfehler bis Fehlerspeicher",obs:["DiaSCR_stEffLo","DSM_stMIL"],reqs:["SWR-DiaSCR-001","SWR-DSM-002"],res:"fail",stand:"B4",spec:"B4"}
 ];
 const CTEST=new Map(CTESTS.map(t=>[t.id,t]));
+/* Seit 17.11.2026: die Requirements kommen aus dem Anforderungsbuch, sofern es auf
+   diesem Gerät einen Stand gibt (Lesekopie wb-anforderungsbuch-data). Die Hoheit liegt
+   dort; hier wird nur gelesen. Übernommen wird, was einer Komponente der Wirkkette
+   zugeordnet werden kann – über die mitgelieferte Komponente oder die ID (SWR-<Komp>-…).
+   Passt keines, bleiben die eingebauten Beispiele stehen. */
+const AB=(function(){
+  let d=null;try{d=JSON.parse(localStorage.getItem("wb-anforderungsbuch-data")||"null")}catch(e){}
+  if(!d||!Array.isArray(d.reqs)||!d.reqs.length)return null;
+  const namen=new Set(COMPS.map(c=>c.n));
+  const kompVon=r=>{if(r.c&&namen.has(r.c))return r.c;const m=String(r.id).split(/[-_.]/);return m.find(x=>namen.has(x))||null};
+  const neu=d.reqs.map(r=>({id:r.id,c:kompVon(r),t:r.t||"",chg:r.chg==="neu"?"neu":r.chg==="geaendert"?"geändert":undefined})).filter(r=>r.c&&r.id);
+  const info={stand:d.stand&&d.stand.name,vorher:d.vorher&&d.vorher.name,gesamt:d.reqs.length,ohne:d.reqs.length-neu.length,genutzt:neu.length>0};
+  if(!neu.length)return info;
+  REQS.length=0;neu.forEach(r=>{if(!r.chg)delete r.chg;REQS.push(r)});
+  /* Teststände werden über die Nummer verglichen (B3 < B4): nur übernehmen, wenn der Name eine trägt */
+  if(info.stand&&bn(info.stand))CUR=info.stand;
+  if(info.vorher&&bn(info.vorher))PREV=info.vorher;
+  /* Verweise der Tests auf Requirements, die es im Stand nicht mehr gibt, fallen weg */
+  const ids=new Set(REQS.map(r=>r.id));
+  [TESTS,CTESTS].forEach(L=>L.forEach(t=>{if(Array.isArray(t.reqs))t.reqs=t.reqs.filter(id=>ids.has(id))}));
+  return info;
+})();
+window.addEventListener("storage",e=>{if(e.key==="wb-anforderungsbuch-data")location.reload()});
 const COMP=new Map(COMPS.map(c=>[c.n,c])),CL=Object.fromEntries(COMPS.map(c=>[c.n,c.cl]));
 const REQ=new Map(REQS.map(r=>[r.id,r])),TEST=new Map(TESTS.map(t=>[t.id,t]));
 const PROD=new Map();COMPS.forEach(c=>c.procs.forEach(p=>p.W.forEach(m=>PROD.set(m,{c:c.n,p}))));
@@ -5353,7 +5376,7 @@ function summaries(){
 /* ===== Anzeige ===== */
 function renderStats(){
   const cf=FLOWS.filter(f=>f.cross&&f.kind!=="phys"),cov=cf.filter(f=>COV.get(f).length).length;
-  $("#stats").innerHTML='<span class="badge">Beispieldaten</span>'+
+  $("#stats").innerHTML=(AB&&AB.genutzt?`<span class="badge" title="Requirements aus dem Anforderungsbuch${AB.ohne?`, ${AB.ohne} ohne passende Komponente nicht übernommen`:""}">Anforderungsbuch · ${esc(AB.stand||"")}</span>`:'<span class="badge"'+(AB?` title="Anforderungsbuch: ${AB.gesamt} Requirements, keines passt zu einer Komponente der Wirkkette"`:"")+'>Beispieldaten</span>')+
     `<span class="stat"><b>${COMPS.length}</b> Komponenten in <b>${CLUSTERS.length}</b> Clustern</span>`+
     `<span class="stat"><b>${REQS.length}</b> SW-Requirements, <b>${chgReqs().length}</b> geändert seit ${PREV}</span>`+
     `<span class="stat"><b>${KTESTS.length}</b> Komponenten-, <b>${CTESTS.length}</b> Cluster-, <b>${TESTS.length}</b> Systemtests</span>`+
