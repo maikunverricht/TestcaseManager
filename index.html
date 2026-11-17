@@ -577,7 +577,7 @@ footer.foot{position:relative;z-index:1;max-width:var(--max);margin:0 auto;paddi
   <div class="nav-in">
     <span class="brand"><span class="mark" aria-hidden="true"><svg viewBox="15 5 90 102"><path d="M26,16 V62 A34,34 0 0 0 94,62 V16" fill="none" stroke="currentColor" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/><circle cx="60" cy="64" r="18.5" fill="var(--amber)"/></svg></span><b>Testcase Manager</b></span>
     <div class="nav-r">
-      <span class="badge hide-sm">Beispieldaten</span>
+      <span class="badge hide-sm" id="quelleBadge">Beispieldaten</span>
       <a class="pill hide-sm" href="https://maikunverricht.github.io/WerkbankUnverricht/" target="_blank" rel="noopener">Werkbank ↗</a>
       <button class="pill icon-btn" id="themeBtn" type="button" aria-label="Hell/Dunkel umschalten">
         <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
@@ -5137,6 +5137,21 @@ const CTESTS=[
  {id:"CT-Diagnose-01",cl:"Diagnose",t:"Wirkungsgradfehler bis Fehlerspeicher",obs:["DiaSCR_stEffLo","DSM_stMIL"],reqs:["SWR-DiaSCR-001","SWR-DSM-002"],res:"fail",stand:"B4",spec:"B4"}
 ];
 const CTEST=new Map(CTESTS.map(t=>[t.id,t]));
+/* Seit 17.11.2026: die Wirkkette kommt aus dem Schaltplan, sofern dort eigene
+   Dateien analysiert wurden (Lesekopie wb-schaltplan-data). Komponenten, Cluster,
+   Prozesse mit Lese-/Schreibgrößen und Variantenbedingungen ersetzen das Beispiel.
+   Die Hoheit liegt im Schaltplan; hier wird nur gelesen. */
+const SP=(function(){
+  let d=null;try{d=JSON.parse(localStorage.getItem("wb-schaltplan-data")||"null")}catch(e){}
+  if(!d||!Array.isArray(d.comps)||!d.comps.length)return null;
+  const comps=d.comps.filter(c=>c&&c.n&&Array.isArray(c.procs)&&c.procs.length).map(c=>({n:c.n,cl:c.cl||c.n,
+    procs:c.procs.map(p=>{const o={p:p.p,R:(p.R||[]).slice(),W:(p.W||[]).slice()};if(p.fn)o.fn=true;return o})}));
+  if(!comps.length)return null;
+  COMPS.length=0;comps.forEach(c=>COMPS.push(c));
+  const cl=[...new Set(comps.map(c=>c.cl))];CLUSTERS.length=0;cl.forEach(x=>CLUSTERS.push(x));
+  Object.keys(COND).forEach(k=>delete COND[k]);Object.assign(COND,d.cond||{});
+  return {komponenten:comps.length,cluster:cl.length,dateien:d.quelle&&d.quelle.dateien,updated:d.updated};
+})();
 /* Seit 17.11.2026: die Requirements kommen aus dem Anforderungsbuch, sofern es auf
    diesem Gerät einen Stand gibt (Lesekopie wb-anforderungsbuch-data). Die Hoheit liegt
    dort; hier wird nur gelesen. Übernommen wird, was einer Komponente der Wirkkette
@@ -5145,8 +5160,11 @@ const CTEST=new Map(CTESTS.map(t=>[t.id,t]));
 const AB=(function(){
   let d=null;try{d=JSON.parse(localStorage.getItem("wb-anforderungsbuch-data")||"null")}catch(e){}
   if(!d||!Array.isArray(d.reqs)||!d.reqs.length)return null;
-  const namen=new Set(COMPS.map(c=>c.n));
-  const kompVon=r=>{if(r.c&&namen.has(r.c))return r.c;const m=String(r.id).split(/[-_.]/);return m.find(x=>namen.has(x))||null};
+  /* Zuordnung tolerant: Name der Komponente, derselbe ohne Unterstriche (Exh_TSens = ExhTSens)
+     oder das Präfix der Messages, die sie schreibt (ExhTSens_tUs → ExhTSens). */
+  const nk=x=>String(x||"").replace(/[^A-Za-z0-9]/g,"").toLowerCase(),alias=new Map();
+  COMPS.forEach(c=>{alias.set(nk(c.n),c.n);c.procs.forEach(p=>p.W.forEach(m=>{const i=m.indexOf("_");if(i>0&&!alias.has(nk(m.slice(0,i))))alias.set(nk(m.slice(0,i)),c.n)}))});
+  const kompVon=r=>{if(r.c&&alias.has(nk(r.c)))return alias.get(nk(r.c));const m=String(r.id).split(/[-_.\s]/);for(const x of m){const a=alias.get(nk(x));if(a)return a}return null};
   const neu=d.reqs.map(r=>({id:r.id,c:kompVon(r),t:r.t||"",chg:r.chg==="neu"?"neu":r.chg==="geaendert"?"geändert":undefined})).filter(r=>r.c&&r.id);
   const info={stand:d.stand&&d.stand.name,vorher:d.vorher&&d.vorher.name,gesamt:d.reqs.length,ohne:d.reqs.length-neu.length,genutzt:neu.length>0};
   if(!neu.length)return info;
@@ -5159,7 +5177,29 @@ const AB=(function(){
   [TESTS,CTESTS].forEach(L=>L.forEach(t=>{if(Array.isArray(t.reqs))t.reqs=t.reqs.filter(id=>ids.has(id))}));
   return info;
 })();
-window.addEventListener("storage",e=>{if(e.key==="wb-anforderungsbuch-data")location.reload()});
+window.addEventListener("storage",e=>{if(e.key==="wb-anforderungsbuch-data"||e.key==="wb-schaltplan-data")location.reload()});
+/* Mit eigener Wirkkette passen die Beispieltests nicht mehr: es bleiben nur die,
+   deren Messages, Cluster und Requirements es im Bestand gibt. */
+if(SP){
+  /* Eingebaute Requirements (ohne Anforderungsbuch) auf die neue Wirkkette umhängen; was nicht passt, fällt weg */
+  if(!(AB&&AB.genutzt)){const nk=x=>String(x||"").replace(/[^A-Za-z0-9]/g,"").toLowerCase(),alias=new Map();
+    COMPS.forEach(c=>{alias.set(nk(c.n),c.n);c.procs.forEach(p=>p.W.forEach(m=>{const i=m.indexOf("_");if(i>0&&!alias.has(nk(m.slice(0,i))))alias.set(nk(m.slice(0,i)),c.n)}))});
+    for(let i=REQS.length-1;i>=0;i--){const a=alias.get(nk(REQS[i].c));if(a)REQS[i].c=a;else REQS.splice(i,1)}}
+  const msgs=new Set(COMPS.flatMap(c=>c.procs.flatMap(p=>p.R.concat(p.W)))),reqIds=new Set(REQS.map(r=>r.id));
+  const halten=(L,ok)=>{for(let i=L.length-1;i>=0;i--)if(!ok(L[i]))L.splice(i,1)};
+  halten(TESTS,t=>(t.obs||[]).every(m=>msgs.has(m)));
+  halten(CTESTS,t=>CLUSTERS.includes(t.cl)&&(t.obs||[]).every(m=>msgs.has(m)));
+  halten(KTESTS,k=>reqIds.has(k.req));
+  [...KT_OF.keys()].forEach(id=>{if(!reqIds.has(id))KT_OF.delete(id)});
+}
+/* Kopfzeile: woher Wirkkette und Requirements stammen */
+(function(){const b=document.getElementById("quelleBadge");if(!b)return;const t=[];if(SP)t.push("Schaltplan");if(AB&&AB.genutzt)t.push("Anforderungsbuch");
+  if(t.length){b.textContent=t.join(" + ");b.title="Tests weiterhin Beispieldaten"}})();
+/* Rückmeldung für den Kontor: was hier angekommen ist. Ein Zähler, kein Bestand. */
+try{localStorage.setItem("wb-testcasemanager-stand",JSON.stringify({updated:new Date().toISOString(),
+  wirkkette:{quelle:SP?"schaltplan":"beispiel",komponenten:COMPS.length,cluster:CLUSTERS.length,stand:SP?SP.updated:null},
+  reqs:{quelle:AB&&AB.genutzt?"anforderungsbuch":"beispiel",stand:AB?AB.stand:null,gesamt:AB?AB.gesamt:REQS.length,uebernommen:REQS.length,ohne:AB?AB.ohne:0},
+  tests:{system:TESTS.length,cluster:CTESTS.length,komponente:KTESTS.length}}))}catch(e){}
 const COMP=new Map(COMPS.map(c=>[c.n,c])),CL=Object.fromEntries(COMPS.map(c=>[c.n,c.cl]));
 const REQ=new Map(REQS.map(r=>[r.id,r])),TEST=new Map(TESTS.map(t=>[t.id,t]));
 const PROD=new Map();COMPS.forEach(c=>c.procs.forEach(p=>p.W.forEach(m=>PROD.set(m,{c:c.n,p}))));
@@ -5376,7 +5416,7 @@ function summaries(){
 /* ===== Anzeige ===== */
 function renderStats(){
   const cf=FLOWS.filter(f=>f.cross&&f.kind!=="phys"),cov=cf.filter(f=>COV.get(f).length).length;
-  $("#stats").innerHTML=(AB&&AB.genutzt?`<span class="badge" title="Requirements aus dem Anforderungsbuch${AB.ohne?`, ${AB.ohne} ohne passende Komponente nicht übernommen`:""}">Anforderungsbuch · ${esc(AB.stand||"")}</span>`:'<span class="badge"'+(AB?` title="Anforderungsbuch: ${AB.gesamt} Requirements, keines passt zu einer Komponente der Wirkkette"`:"")+'>Beispieldaten</span>')+
+  $("#stats").innerHTML=(SP?`<span class="badge" title="Wirkkette aus dem Schaltplan${SP.dateien?", "+SP.dateien+" Dateien":""}">Schaltplan</span>`:"")+(AB&&AB.genutzt?`<span class="badge" title="Requirements aus dem Anforderungsbuch${AB.ohne?`, ${AB.ohne} ohne passende Komponente nicht übernommen`:""}">Anforderungsbuch · ${esc(AB.stand||"")}</span>`:'<span class="badge"'+(AB?` title="Anforderungsbuch: ${AB.gesamt} Requirements, keines passt zu einer Komponente der Wirkkette"`:"")+'>Beispieldaten</span>')+
     `<span class="stat"><b>${COMPS.length}</b> Komponenten in <b>${CLUSTERS.length}</b> Clustern</span>`+
     `<span class="stat"><b>${REQS.length}</b> SW-Requirements, <b>${chgReqs().length}</b> geändert seit ${PREV}</span>`+
     `<span class="stat"><b>${KTESTS.length}</b> Komponenten-, <b>${CTESTS.length}</b> Cluster-, <b>${TESTS.length}</b> Systemtests</span>`+
