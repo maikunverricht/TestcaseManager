@@ -5087,6 +5087,7 @@ module.exports = __WEBPACK_EXTERNAL_MODULE__4__;
           <label for="tf_id">Test-ID <b>*</b></label><select id="tf_id"></select>
           <label for="tf_t">Titel</label><select id="tf_t"></select>
           <label for="tf_ebene">Ebene</label><select id="tf_ebene"></select>
+          <label for="tf_art">Testart (L4)</label><select id="tf_art"></select>
           <label for="tf_reqs">Requirements</label><select id="tf_reqs"></select>
           <label for="tf_obs">Messages / Signale</label><select id="tf_obs"></select>
           <label for="tf_cl">Cluster</label><select id="tf_cl"></select>
@@ -5095,7 +5096,7 @@ module.exports = __WEBPACK_EXTERNAL_MODULE__4__;
           <label for="tf_stand">Getestet in (Stand)</label><select id="tf_stand"></select>
           <label for="tf_spec">Spezifiziert für</label><select id="tf_spec"></select>
         </div>
-        <p class="hin" style="margin-top:10px">Ebene: System/HiL → Systemtest, Cluster/Integration → Clustertest, Komponente/Unit → Komponententest. Fehlt die Spalte, entscheidet das Präfix der ID (SYT/CT/KT). Listen in einer Zelle durch Komma, Semikolon oder Zeilenumbruch trennen.</p>
+        <p class="hin" style="margin-top:10px">Ebene: System/HiL → Systemtest, Cluster/Integration → Clustertest, Komponente/Unit/Weakspot → Komponentenebene (L4). Testart auf L4: Unittest oder Weakspottest – aus der Spalte Testart oder dem ID-Präfix WS/WST. Fehlt die Spalte Ebene, entscheidet das Präfix der ID (SYT/CT/KT/UT/WS). Listen in einer Zelle durch Komma, Semikolon oder Zeilenumbruch trennen.</p>
         <div class="tf-sum" id="tfSum"></div>
         <div class="tf-vor" id="tfVor"></div>
       </div>
@@ -5989,6 +5990,8 @@ const KTESTS=[
  {id:"KT-FId-001",req:"SWR-FId-001",res:"pass",stand:"B3",spec:"B3"}
 ];
 const KT_OF=new Map(KTESTS.map(k=>[k.req,k]));
+/* Weakspottests (L4, seit 18.11.2026): zusätzlich zum Unittest, je Requirement beliebig viele */
+const KWTESTS=[],KW_OF=new Map();
 /* Ebene 2: Clustertests. Sie prüfen die Komponenten eines Clusters zusammen, Eingänge von außerhalb des Clusters
    kommen aus Stubs. obs: Messgrößen, die der Test anregt oder misst. Für Versorgung gibt es keinen. */
 const CTESTS=[
@@ -6007,7 +6010,8 @@ const TB=(function(){
   if(!d||!Array.isArray(d.tests)||!d.tests.length)return null;
   const sys=[],cl=[],kom=[];
   d.tests.forEach(t=>{const b={id:t.id,res:t.res||"open",stand:t.stand||null,spec:t.spec||null};
-    if(t.ebene==="kom"){if(t.reqs&&t.reqs[0])kom.push(Object.assign(b,{req:t.reqs[0]}))}
+    if(t.ebene==="kom"&&t.art==="weakspot"){const w=Object.assign(b,{t:t.t||t.id,reqs:t.reqs||[]});KWTESTS.push(w);w.reqs.forEach(id=>{if(!KW_OF.has(id))KW_OF.set(id,[]);KW_OF.get(id).push(w)})}
+    else if(t.ebene==="kom"){if(t.reqs&&t.reqs[0])kom.push(Object.assign(b,{req:t.reqs[0]}))}
     else if(t.ebene==="cl")cl.push(Object.assign(b,{cl:t.cl||"",t:t.t||t.id,obs:t.obs||[],reqs:t.reqs||[]}));
     else sys.push(Object.assign(b,{t:t.t||t.id,env:t.env||"",obs:t.obs||[],reqs:t.reqs||[]}))});
   TESTS.length=0;sys.forEach(x=>TESTS.push(x));CTESTS.length=0;cl.forEach(x=>CTESTS.push(x));KTESTS.length=0;kom.forEach(x=>KTESTS.push(x));
@@ -6089,7 +6093,7 @@ if(TB){
 if(!NUR_BSP)try{localStorage.setItem("wb-testcasemanager-stand",JSON.stringify({updated:new Date().toISOString(),
   wirkkette:{quelle:SP?"schaltplan":"beispiel",komponenten:COMPS.length,cluster:CLUSTERS.length,stand:SP?SP.updated:null},
   reqs:{quelle:AB&&AB.genutzt?"anforderungsbuch":"beispiel",stand:AB?AB.stand:null,gesamt:AB?AB.gesamt:REQS.length,uebernommen:REQS.length,ohne:AB?AB.ohne:0},
-  tests:{quelle:TB?"eigene":"beispiel",system:TESTS.length,cluster:CTESTS.length,komponente:KTESTS.length}}))}catch(e){}
+  tests:{quelle:TB?"eigene":"beispiel",system:TESTS.length,cluster:CTESTS.length,komponente:KTESTS.length,weakspot:KWTESTS.length}}))}catch(e){}
 const COMP=new Map(COMPS.map(c=>[c.n,c])),CL=Object.fromEntries(COMPS.map(c=>[c.n,c.cl]));
 const REQ=new Map(REQS.map(r=>[r.id,r])),TEST=new Map(TESTS.map(t=>[t.id,t]));
 const PROD=new Map();COMPS.forEach(c=>c.procs.forEach(p=>p.W.forEach(m=>PROD.set(m,{c:c.n,p}))));
@@ -6554,6 +6558,10 @@ function renderKom(){
   const steps=[];
   steps.push(`<li><b>Komponententest</b>${s1.length?`<ul class="lst">${s1.map(ktLi).join("")}</ul>`:`<span class="sub">${C.ktDirect.length>1?"alle aktuell":"aktuell"}</span>`}</li>`);
   if(s2.length)steps.push(`<li><b>Regression derselben Komponente</b><ul class="lst">${s2.map(ktLi).join("")}</ul></li>`);
+  /* Weakspottest: zusätzlich auf Komponentenebene, je Requirement */
+  const ws=[...new Set(C.ktDirect.flatMap(e=>KW_OF.get(e.r.id)||[]))];
+  const wsTxt={pass:"bestanden",fail:"fehlgeschlagen",open:"offen"},wsCls={pass:"ok",fail:"bad",open:"warn"};
+  steps.push(`<li><b>Weakspottest</b>${ws.length?`<ul class="lst">${ws.map(w=>`<li><div class="lh"><span class="tid">${esc(w.id)}</span><span class="st ${wsCls[w.res]||"warn"}">${wsTxt[w.res]||"offen"}${w.stand?" · "+esc(w.stand):""}</span></div><span class="sub">${esc(w.t||"")}</span></li>`).join("")}</ul>`:`<span class="sub">keiner hinterlegt</span>`}</li>`);
   steps.push(`<li><b>Clustertest</b><span class="sub">${!C.cNeed&&!co?"nicht nötig":[co?`${co} offen`:"",cg?`${cg} Schnittstelle${cg>1?"n":""} ohne Test`:"",!co&&!cg?"alle aktuell":""].filter(Boolean).join(", ")}</span><button class="lnk" type="button" data-go="1">zur Ansicht Cluster</button></li>`);
   steps.push(`<li><b>Systemtest</b><span class="sub">${!C.v.need?"nicht nötig":[C.open.length?`${C.open.length} offen`:"",gN?`${gN} Schnittstelle${gN>1?"n":""} ohne Test`:"",!C.open.length&&!gN?"alle aktuell":""].filter(Boolean).join(", ")}</span><button class="lnk" type="button" data-go="0">zur Ansicht System</button></li>`);
   h+=`<div class="sec"><h3>Testplan <span class="sub">jede Ebene erst, wenn die darunter besteht</span></h3><ol class="steps">${steps.join("")}</ol></div>`;
@@ -7083,16 +7091,18 @@ renderStats();update();
 /* ===== Testfall-Import: Excel/CSV → wb-testcasemanager-data ===== */
 (function(){
   const dlg=document.getElementById("tfDlg");if(!dlg)return;
-  const q=id=>document.getElementById(id),FELDER=["id","t","ebene","reqs","obs","cl","env","res","stand","spec"];
+  const q=id=>document.getElementById(id),FELDER=["id","t","ebene","art","reqs","obs","cl","env","res","stand","spec"];
   const RX={id:[/^(test.?id|testfall.?id|tc.?id|test ?case ?id|id)$/i,/id$/i],t:[/^(titel|title|name|testfall|test ?case|summary|beschreibung)$/i],
-    ebene:[/^(ebene|level|teststufe|stufe|test ?level|testebene|typ|type|art)$/i],reqs:[/^(requirements?|anforderungen?|req.?ids?|verknüpfte requirements|covers|deckt ab|links?)$/i,/req|anforder/i],
+    ebene:[/^(ebene|level|teststufe|stufe|test ?level|testebene|typ|type|art)$/i],art:[/^(testart|testtyp|testmethode|methode|test ?type|test ?kind|technik|verfahren)$/i],reqs:[/^(requirements?|anforderungen?|req.?ids?|verknüpfte requirements|covers|deckt ab|links?)$/i,/req|anforder/i],
     obs:[/^(messages?|signale?|beobachtet|beobachtung|observ\w*|labels?|messgrößen|messgroessen)$/i],cl:[/^(cluster|integration)$/i],
     env:[/^(umgebung|environment|env|plattform|prüfplatz|testumgebung)$/i],res:[/^(ergebnis|result|verdict|status|bewertung)$/i],
     stand:[/^(stand|baseline|getestet in|sw.?stand|release|ausgeführt in|executed in|version)$/i],spec:[/^(spec|spezifikation|spezifiziert (in|für)|spezifikationsstand)$/i]};
   let roh=null,dateiName="";
   const norm=x=>String(x??"").replace(/\s+/g," ").trim(),liste=x=>String(x||"").split(/[,;\n]+/).map(norm).filter(Boolean);
   const ebeneVon=(v,id)=>{v=String(v||"").toLowerCase();if(/sys|hil|fahrzeug|vehicle|prüfstand|ebene ?3/.test(v))return "sys";if(/clust|integr|ebene ?2/.test(v))return "cl";
-    if(/komp|unit|modul|component|ebene ?1/.test(v))return "kom";if(/^(syt|st|sys)/i.test(id))return "sys";if(/^(ct|it)/i.test(id))return "cl";if(/^(kt|ut|mt)/i.test(id))return "kom";return "sys"};
+    if(/komp|unit|modul|component|weak|schwachstell|ebene ?1/.test(v))return "kom";if(/^(syt|st|sys)/i.test(id))return "sys";if(/^(ct|it)/i.test(id))return "cl";if(/^(kt|ut|mt|ws|wst)/i.test(id))return "kom";return "sys"};
+  /* Seit 18.11.2026: Testart auf Komponentenebene – Unittest oder Weakspottest */
+  const artVon=(v,ev,id)=>/weak|schwachstell/i.test(String(v||"")+" "+String(ev||""))||/^(ws|wst)[-_ ]?/i.test(id)?"weakspot":"unit";
   const resVon=v=>{v=String(v||"").trim().toLowerCase();if(/^(pass(ed)?|ok|bestanden|i\.?\s?o\.?|grün|green|erfolgreich|passed)$/.test(v))return "pass";
     if(/fail|nok|n\.?\s?i\.?\s?o|nicht bestanden|fehl|rot|red|error/.test(v))return "fail";return "open"};
   function dekod(buf){const u=new Uint8Array(buf);const t=new TextDecoder("utf-8").decode(u);return t.includes("�")?new TextDecoder("windows-1252").decode(u):t.replace(/^﻿/,"")}
@@ -7112,7 +7122,8 @@ renderStats();update();
     if(!z.id)return null;
     const tests=[];const ids=new Set();
     roh.zeilen.forEach(r=>{const id=norm(r[z.id]);if(!id||ids.has(id))return;ids.add(id);
-      tests.push({id,t:z.t?norm(r[z.t]):"",ebene:ebeneVon(z.ebene?r[z.ebene]:"",id),reqs:z.reqs?liste(r[z.reqs]):[],obs:z.obs?liste(r[z.obs]):[],
+      const eb=ebeneVon(z.ebene?r[z.ebene]:"",id);
+      tests.push({id,t:z.t?norm(r[z.t]):"",ebene:eb,art:eb==="kom"?artVon(z.art?r[z.art]:"",z.ebene?r[z.ebene]:"",id):undefined,reqs:z.reqs?liste(r[z.reqs]):[],obs:z.obs?liste(r[z.obs]):[],
         cl:z.cl?norm(r[z.cl]):"",env:z.env?norm(r[z.env]):"",res:resVon(z.res?r[z.res]:""),stand:z.stand?norm(r[z.stand])||null:null,spec:z.spec?norm(r[z.spec])||null:null})});
     return {z,tests};
   }
@@ -7120,9 +7131,9 @@ renderStats();update();
     const b=bauen();q("tfOk").disabled=!b||!b.tests.length;
     if(!b){q("tfSum").innerHTML="";q("tfVor").innerHTML="";return}
     const n=e=>b.tests.filter(t=>t.ebene===e).length,ohne=b.tests.filter(t=>t.ebene==="kom"&&!t.reqs.length).length;
-    q("tfSum").innerHTML=`<span><b>${b.tests.length}</b> Testfälle</span><span><b>${n("sys")}</b> System</span><span><b>${n("cl")}</b> Cluster</span><span><b>${n("kom")}</b> Komponente</span>`+
+    q("tfSum").innerHTML=`<span><b>${b.tests.length}</b> Testfälle</span><span><b>${n("sys")}</b> System</span><span><b>${n("cl")}</b> Cluster</span><span><b>${n("kom")}</b> Komponente${b.tests.some(t=>t.art==="weakspot")?" (davon "+b.tests.filter(t=>t.art==="weakspot").length+" Weakspot)":""}</span>`+
       (ohne?`<span style="color:var(--red-ink)">${ohne} Komponententests ohne Requirement – entfallen</span>`:"");
-    const k=["id","t","ebene","reqs","res","stand"];
+    const k=["id","t","ebene","art","reqs","res","stand"];
     q("tfVor").innerHTML="<table><thead><tr>"+k.map(x=>`<th>${x}</th>`).join("")+"</tr></thead><tbody>"+
       b.tests.slice(0,8).map(t=>"<tr>"+k.map(x=>`<td>${esc(Array.isArray(t[x])?t[x].join(", "):t[x]??"")}</td>`).join("")+"</tr>").join("")+"</tbody></table>";
   }
@@ -7172,7 +7183,7 @@ if(window.WBTor&&WBTor.start)WBTor.start(function(){
 (function(){
   const lies=k=>{try{return JSON.parse(localStorage.getItem(k)||"null")}catch(e){return null}};
   const sheet=document.getElementById("auSheet");if(!sheet)return;
-  const EB={2:"sys",3:"cl",4:"kom"},EBN={sys:"Systemtest",cl:"Clustertest",kom:"Komponententest"};
+  const EB={2:"sys",3:"cl",4:"kom"},EBN={sys:"Systemtest",cl:"Clustertest",kom:"Unit-/Weakspottest"};
   function bauen(){
     const ab=NUR_BSP?null:lies("wb-anforderungsbuch-data"),au=(ab&&ab.auftraege)||{},ids=Object.keys(au);
     if(!ids.length){sheet.hidden=true;return}
@@ -7199,7 +7210,7 @@ if(window.WBTor&&WBTor.start)WBTor.start(function(){
         else if(passend.some(t=>t.res==="fail"))st='<span class="st bad">fehlgeschlagen</span>';
         else if(passend.every(t=>t.res==="pass")){st='<span class="st ok">abgedeckt</span>';if(K)K.ok++}
         else st='<span class="st warn">offen</span>';
-        const tz=ts.map(t=>`<span class="tst" title="${esc(t.t||"")}${t.ebene!==soll?" – andere Ebene: "+esc(EBN[t.ebene]||t.ebene):""}"><i class="tdot f" style="--c:var(${t.res==="pass"?"--free":t.res==="fail"?"--red-ink":"--over"})"></i>${esc(t.id)}${t.ebene!==soll?" ("+esc(t.ebene)+")":""}</span>`).join("");
+        const tz=ts.map(t=>`<span class="tst" title="${esc(t.t||"")}${t.ebene!==soll?" – andere Ebene: "+esc(EBN[t.ebene]||t.ebene):""}"><i class="tdot f" style="--c:var(${t.res==="pass"?"--free":t.res==="fail"?"--red-ink":"--over"})"></i>${esc(t.id)}${t.art==="weakspot"?" · Weakspot":""}${t.ebene!==soll?" ("+esc(t.ebene)+")":""}</span>`).join("");
         body.push(`<tr><td class="eb" style="padding-left:${(r.ebene-1)*10+8}px">L${r.ebene}</td><td class="id">${esc(r.id)}</td><td class="tx">${esc(r.t||"")}${r.art==="betroffen"?' <span class="st warn">betroffen</span>':""}</td><td>${esc(r.release||"")}${r.cl?(r.release?"<br>":"")+"<span class=\"au-rel\">"+esc(r.cl)+(r.fn?" · "+esc(r.fn)+"()":"")+"</span>":""}</td><td>${tz||"–"}</td><td>${st}</td></tr>`);
       };
       const lauf=r=>{zeig(r);kinder(r.id).forEach(lauf)};kinder(x.id).forEach(lauf);
