@@ -147,6 +147,22 @@ h1 .hbtn{width:28px;height:28px;font-size:13px;vertical-align:5px;letter-spacing
 .foldall{height:32px;font-size:13px;padding:0 12px;color:var(--text-2)}
 .foldall.zu svg{transform:rotate(-90deg)}
 @media (max-width:520px){.foldall span{display:none}.foldall{width:32px;padding:0;justify-content:center}}
+/* Auftrag: Abdeckung L2–L4 (seit 18.11.2026) */
+.au-kopf{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin-top:10px}
+.au-kopf select{height:36px;padding:0 12px;border:1px solid var(--glass-edge);border-radius:100px;background:var(--glass);color:var(--text);font:inherit;max-width:100%}
+.au-kopf .au-rel{font:500 11px/1.3 var(--mono);color:var(--text-3)}
+table.au-t{border-collapse:collapse;width:100%;font-size:12.5px;margin-top:12px}
+.au-t th,.au-t td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.au-t th{font:600 10px/1.3 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.au-t td.id{font:600 11px/1.45 var(--mono);white-space:nowrap}
+.au-t td.eb{font:700 11px/1.45 var(--mono);color:var(--text-2)}
+.au-t tr.e1 td{color:var(--text-2)}
+.au-t .tst{display:inline-flex;align-items:center;gap:5px;margin:0 8px 3px 0;font:500 11px/1.3 var(--mono);white-space:nowrap}
+.au-t .st{font:600 10.5px/1 var(--mono);padding:3px 7px;border-radius:100px;border:1px solid var(--line);white-space:nowrap}
+.au-t .st.ok{color:var(--free-ink);border-color:color-mix(in srgb,var(--free) 45%,transparent)}
+.au-t .st.warn{color:var(--over);border-color:color-mix(in srgb,var(--over) 45%,transparent)}
+.au-t .st.bad{color:var(--red-ink);border-color:color-mix(in srgb,var(--red-ink) 45%,transparent)}
+@media (max-width:620px){.au-t td.tx{min-width:180px}}
 /* Matrix Requirement ↔ Testfall */
 .tkpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:12px}
 .kp{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--film)}
@@ -746,6 +762,13 @@ dialog.tf::backdrop{background:rgba(0,0,0,.45)}
         <h1><span>Matrix</span> <em>Requirement zu Testfall, alle Ebenen.</em></h1>
         <template class="hhelp"><p><b>Rückverfolgung</b> über alle drei Ebenen: Jede Zeile ist ein SW-Requirement, jede Spalte ein Testfall. Die Σ-Spalten zeigen, ob die Ebene für dieses Requirement einen Test braucht und ob er vorhanden und aktuell ist.</p><p>Gerechnet wird je Requirement mit der eingestellten Wirktiefe, unabhängig von der Auswahl oben. Die Auswahl ist gelb hinterlegt, ihre Testfälle sind in der Kopfzeile unterstrichen.</p></template>
         <div class="lvls" data-i="3"></div>
+      </section>
+      <section class="sheet" data-fold="mat-auftrag" id="auSheet" hidden>
+        <span class="t-idx">Auftrag · Abdeckung L2–L4</span><h2>Tests je Auftrag</h2>
+        <p class="lede">Anforderungen des Auftrags aus dem Anforderungsbuch. L2 Systemanforderung → Systemtest (Qualifikation, Ziel BC-Release), L3 Cluster-Wirkkette → Clustertest (Integration, Ziel FC-Release), L4 Funktion → Komponententest. Gezählt werden die eigenen Testfälle, die die Anforderung nennen.</p>
+        <div class="au-kopf"><select id="auSel" aria-label="Auftrag"></select><span class="au-rel" id="auRel"></span></div>
+        <div class="tkpi" id="auKpi"></div>
+        <div class="tbl-wrap" id="auTbl"></div>
       </section>
       <section class="sheet" data-fold="mat-trace">
         <div class="row">
@@ -7138,6 +7161,56 @@ if(window.WBTor&&WBTor.start)WBTor.start(function(){
   let k=SLIDE_HASH.indexOf(location.hash.slice(1));
   if(k<0){try{k=+localStorage.getItem(SLIDE_LS)}catch(e){k=0}}
   if(k>0&&k<4)requestAnimationFrame(()=>{zuSlide(k,false);Dock.setzen(k,false,true);Dock.aufbauen()});
+})();
+</script>
+<script>
+/* ===== Auftrag: Abdeckung L2–L4 (seit 18.11.2026) =====
+   Liest die Aufträge aus dem Anforderungsbuch (wb-anforderungsbuch-data → auftraege)
+   und die eigenen Testfälle roh (wb-testcasemanager-data) – unabhängig davon, welche
+   Requirements oben der Wirkkette zugeordnet werden konnten. Vorwahl: aktiver Auftrag
+   (wb-aktiver-auftrag). Erwartete Testebene: L2 → sys, L3 → cl, L4 → kom. */
+(function(){
+  const lies=k=>{try{return JSON.parse(localStorage.getItem(k)||"null")}catch(e){return null}};
+  const sheet=document.getElementById("auSheet");if(!sheet)return;
+  const EB={2:"sys",3:"cl",4:"kom"},EBN={sys:"Systemtest",cl:"Clustertest",kom:"Komponententest"};
+  function bauen(){
+    const ab=NUR_BSP?null:lies("wb-anforderungsbuch-data"),au=(ab&&ab.auftraege)||{},ids=Object.keys(au);
+    if(!ids.length){sheet.hidden=true;return}
+    sheet.hidden=false;
+    const kp=lies("wb-kapazitaetenplaner-auftraege"),kpA=id=>kp&&Array.isArray(kp.auftraege)&&kp.auftraege.find(a=>a.id===id);
+    const akt=lies("wb-aktiver-auftrag");
+    let wahl=sheet.dataset.wahl||(akt&&au[akt.id]?akt.id:ids[0]);if(!au[wahl])wahl=ids[0];sheet.dataset.wahl=wahl;
+    const sel=document.getElementById("auSel");
+    sel.innerHTML=ids.map(id=>{const k=kpA(id);return `<option value="${esc(id)}"${id===wahl?" selected":""}>${akt&&akt.id===id?"● ":""}${esc(id)}${k?" · "+esc(k.titel):""}</option>`}).join("");
+    sel.onchange=()=>{sheet.dataset.wahl=sel.value;bauen()};
+    const k=kpA(wahl),a=au[wahl];
+    document.getElementById("auRel").textContent=k?[k.bc,(k.fcs||[]).join(", ")].filter(Boolean).join(" · "):"";
+    const tb=NUR_BSP?null:lies("wb-testcasemanager-data"),tests=(tb&&Array.isArray(tb.tests))?tb.tests:[];
+    const kpi={2:{n:0,ok:0,lu:0},3:{n:0,ok:0,lu:0},4:{n:0,ok:0,lu:0}};
+    const kinder=id=>(a.reqs||[]).filter(r=>r.eltern===id);
+    const body=[];
+    (a.l1||[]).forEach(x=>{
+      body.push(`<tr class="e1"><td class="eb">L1</td><td class="id">${esc(x.id)}</td><td class="tx">${esc(x.t||"")}</td><td></td><td></td><td>${x.formuliert===false?'<span class="st warn">noch formulieren</span>':""}</td></tr>`);
+      const zeig=r=>{
+        const soll=EB[r.ebene],ts=tests.filter(t=>(t.reqs||[]).includes(r.id)),passend=ts.filter(t=>t.ebene===soll);
+        const K=kpi[r.ebene];if(K){K.n++;}
+        let st;
+        if(!passend.length){st='<span class="st bad">'+EBN[soll]+' fehlt</span>';if(K)K.lu++}
+        else if(passend.some(t=>t.res==="fail"))st='<span class="st bad">fehlgeschlagen</span>';
+        else if(passend.every(t=>t.res==="pass")){st='<span class="st ok">abgedeckt</span>';if(K)K.ok++}
+        else st='<span class="st warn">offen</span>';
+        const tz=ts.map(t=>`<span class="tst" title="${esc(t.t||"")}${t.ebene!==soll?" – andere Ebene: "+esc(EBN[t.ebene]||t.ebene):""}"><i class="tdot f" style="--c:var(${t.res==="pass"?"--free":t.res==="fail"?"--red-ink":"--over"})"></i>${esc(t.id)}${t.ebene!==soll?" ("+esc(t.ebene)+")":""}</span>`).join("");
+        body.push(`<tr><td class="eb" style="padding-left:${(r.ebene-1)*10+8}px">L${r.ebene}</td><td class="id">${esc(r.id)}</td><td class="tx">${esc(r.t||"")}${r.art==="betroffen"?' <span class="st warn">betroffen</span>':""}</td><td>${esc(r.release||"")}${r.cl?(r.release?"<br>":"")+"<span class=\"au-rel\">"+esc(r.cl)+(r.fn?" · "+esc(r.fn)+"()":"")+"</span>":""}</td><td>${tz||"–"}</td><td>${st}</td></tr>`);
+      };
+      const lauf=r=>{zeig(r);kinder(r.id).forEach(lauf)};kinder(x.id).forEach(lauf);
+    });
+    document.getElementById("auTbl").innerHTML=`<table class="au-t"><thead><tr><th>Ebene</th><th>ID</th><th>Anforderung</th><th>Release · Ort</th><th>Testfälle</th><th>Stand</th></tr></thead><tbody>${body.join("")}</tbody></table>`;
+    document.getElementById("auKpi").innerHTML=[2,3,4].map(e=>{const K=kpi[e];return `<div class="kp"><span>L${e} → ${EBN[EB[e]]}</span><b${K.lu?' class="neg"':""}>${K.ok}/${K.n}</b><span>${K.lu?K.lu+" ohne "+EBN[EB[e]]:"alle mit Test"}</span></div>`}).join("");
+  }
+  bauen();
+  window.addEventListener("storage",e=>{if(e.key==="wb-aktiver-auftrag"||e.key==="wb-kapazitaetenplaner-auftraege")bauen()});
+  /* Kontor öffnet eine Ebene direkt (SWE.5 → Cluster, SWE.6 → System) */
+  window.tcmEbene=function(k){k=typeof k==="string"?SLIDE_HASH.indexOf(k):+k;if(!(k>=0&&k<4))return;try{localStorage.setItem(SLIDE_LS,String(k))}catch(e){}zuSlide(k,false);Dock.setzen(k,false,true);Dock.aufbauen()};
 })();
 </script>
 </body>
