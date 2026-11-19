@@ -177,6 +177,21 @@ table.au-t{border-collapse:collapse;width:100%;font-size:12.5px;margin-top:12px}
 .au-t .st{font:600 12px/1 var(--mono);padding:3px 7px;border-radius:100px;border:1px solid var(--line);white-space:nowrap}
 .au-t .st.ok{color:var(--free-ink);border-color:color-mix(in srgb,var(--free) 45%,transparent)}
 .au-t .st.warn{color:var(--over);border-color:color-mix(in srgb,var(--over) 45%,transparent)}
+/* Seit 19.11.2026: Testfälle links im V spezifizieren */
+.au-t .st.spez{color:var(--text-2);border-style:dashed}
+.au-t .neu{font:600 12px/1 var(--mono);padding:4px 9px;border-radius:100px;border:1px solid var(--line-strong,var(--line));background:transparent;color:var(--text);cursor:pointer;margin-top:4px;min-height:24px}
+.au-t .neu:hover{border-color:var(--amber,currentColor)}
+.au-t .tst.sz{border:1px dashed var(--line);border-radius:100px;padding:1px 6px}
+.au-t .tst button{border:none;background:none;color:var(--text-3);cursor:pointer;font:inherit;padding:0 2px;min-height:20px}
+.au-t tr.form td{background:color-mix(in srgb,var(--text) 4%,transparent)}
+.au-form{display:grid;gap:8px;grid-template-columns:1fr 1fr;padding:6px 0}
+.au-form label{display:grid;gap:3px;font:600 11px/1.2 var(--mono);color:var(--text-3);text-transform:uppercase;letter-spacing:.06em}
+.au-form .voll{grid-column:1/-1}
+.au-form input,.au-form textarea,.au-form select{font:13px/1.4 inherit;font-family:inherit;color:var(--text);background:var(--bg,transparent);border:1px solid var(--line);border-radius:8px;padding:6px 8px;text-transform:none;letter-spacing:0}
+.au-form textarea{min-height:64px;resize:vertical}
+.au-form .knoepfe{grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.au-form .fehler{color:var(--red-ink);font-size:12px}
+@media (max-width:700px){.au-form{grid-template-columns:1fr}}
 .au-t .st.bad{color:var(--red-ink);border-color:color-mix(in srgb,var(--red-ink) 45%,transparent)}
 @media (max-width:620px){.au-t td.tx{min-width:180px}}
 /* Matrix Requirement ↔ Testfall */
@@ -781,7 +796,7 @@ dialog.tf::backdrop{background:rgba(0,0,0,.45)}
       </section>
       <section class="sheet" data-fold="mat-auftrag" id="auSheet" hidden>
         <span class="t-idx">Auftrag · Abdeckung L2–L4</span><h2>Tests je Auftrag</h2>
-        <p class="lede">Anforderungen des Auftrags aus dem Anforderungsbuch. L2 Systemanforderung → Systemtest (Qualifikation, Ziel BC-Release), L3 Cluster-Wirkkette → Clustertest (Integration, Ziel FC-Release), L4 Funktion → Komponententest. Gezählt werden die eigenen Testfälle, die die Anforderung nennen.</p>
+        <p class="lede">Anforderungen des Auftrags aus dem Anforderungsbuch. L2 Systemanforderung → Systemtest (Qualifikation, Ziel BC-Release), L3 Cluster-Wirkkette → Clustertest (Integration, Ziel FC-Release), L4 Funktion → Komponententest. Gezählt werden die eigenen Testfälle, die die Anforderung nennen. <b>Links im V:</b> fehlt ein Testfall, legst du ihn hier gleich beim Schreiben der Anforderung an (<i>+ Testfall</i>). Er gilt als spezifiziert, bis ein Import ihn mit Ergebnis ersetzt.</p>
         <div class="au-kopf"><select id="auSel" aria-label="Auftrag"></select><span class="au-rel" id="auRel"></span></div>
         <div class="tkpi" id="auKpi"></div>
         <div class="tbl-wrap" id="auTbl"></div>
@@ -7170,7 +7185,11 @@ renderStats();update();
   q("tfDrop").addEventListener("dragover",e=>{e.preventDefault()});
   q("tfDrop").addEventListener("drop",e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(f)datei(f)});
   q("tfOk").addEventListener("click",()=>{const b=bauen();if(!b||!b.tests.length)return;
-    try{localStorage.setItem("wb-testcasemanager-data",JSON.stringify({app:"werkbank-testcasemanager",version:1,updated:new Date().toISOString(),datei:dateiName,zuordnung:b.z,tests:b.tests}))}
+    /* Seit 19.11.2026: links spezifizierte Testfälle bleiben, bis der Import einen Testfall
+       derselben Anforderung und Ebene bringt – der ersetzt sie (wie CQ die Planer-Workitems). */
+    let alt=null;try{alt=JSON.parse(localStorage.getItem("wb-testcasemanager-data")||"null")}catch(e){}
+    const bleib=((alt&&alt.tests)||[]).filter(t=>t.spez&&!b.tests.some(x=>x.id===t.id||(x.ebene===t.ebene&&(x.reqs||[]).some(r=>(t.reqs||[]).includes(r)))));
+    try{localStorage.setItem("wb-testcasemanager-data",JSON.stringify({app:"werkbank-testcasemanager",version:1,updated:new Date().toISOString(),datei:dateiName,zuordnung:b.z,tests:b.tests.concat(bleib)}))}
     catch(e){q("tfFehler").textContent="Speichern fehlgeschlagen: "+e.message;return}
     if(!localStorage.getItem("wb-testcasemanager-data")){q("tfFehler").textContent="Speichern ist ohne Lizenz gesperrt.";return}
     location.reload()});
@@ -7200,7 +7219,63 @@ if(window.WBTor&&WBTor.start)WBTor.start(function(){
   const lies=k=>{try{return JSON.parse(localStorage.getItem(k)||"null")}catch(e){return null}};
   const sheet=document.getElementById("auSheet");if(!sheet)return;
   const EB={2:"sys",3:"cl",4:"kom"},EBN={sys:"Systemtest",cl:"Clustertest",kom:"Unit-/Weakspottest"};
+  /* Seit 19.11.2026 (Maik): Testfälle entstehen links im V, beim Schreiben der Anforderung.
+     „+ Testfall“ legt einen spezifizierten Testfall an (spez:true, res "open") – Ebene aus
+     der Anforderung (L2 → sys, L3 → cl, L4 → kom). Ein Import mit einem Testfall derselben
+     Anforderung und Ebene ersetzt ihn. Im KapazitätenPlaner ist SWE.1 erst grün, wenn jede
+     L2–L4 des Auftrags einen Testfall hat. */
+  let offenFuer=null,darf=false;
+  const darfJetzt=()=>!NUR_BSP&&!(window.WBTor&&WBTor.zu&&WBTor.zu());
+  const TD="wb-testcasemanager-data";
+  function formZeile(r,soll){
+    const vor=soll==="sys"?"Systemtest":soll==="cl"?"Clustertest":"Unittest";
+    return `<tr class="form"><td></td><td colspan="5"><form class="au-form" data-fuer="${esc(r.id)}" data-eb="${soll}">
+      <label class="voll">Titel<input name="t" required value="${esc(vor+": "+(r.t||r.id).slice(0,90))}"></label>
+      <label>Vorgehen / Stimulus<textarea name="vor" placeholder="Was wird angeregt, in welchem Zustand?"></textarea></label>
+      <label>Erwartetes Ergebnis<textarea name="erw" placeholder="Woran ist die Anforderung erfüllt?"></textarea></label>
+      ${soll==="kom"?'<label>Art<select name="art"><option value="">Unittest</option><option value="weakspot">Weakspottest</option></select></label>':""}
+      ${soll==="sys"?'<label>Umgebung<input name="env" placeholder="z. B. HiL, Fahrzeug"></label>':""}
+      <div class="knoepfe"><button type="submit" class="pill">Testfall anlegen</button><button type="button" class="pill" data-abbruch>Abbrechen</button><span class="fehler" role="alert"></span></div>
+    </form></td></tr>`;
+  }
+  function anlegen(f){
+    const r={id:f.dataset.fuer},eb=f.dataset.eb,t=f.t.value.trim();if(!t){f.t.focus();return}
+    let d=lies(TD);if(!d||!Array.isArray(d.tests))d={app:"werkbank-testcasemanager",version:1,datei:null,tests:[]};
+    const abk={sys:"ST",cl:"CT",kom:"UT"}[eb];let n=1;while(d.tests.some(x=>x.id===`${abk}-${r.id}-${n}`))n++;
+    const ab=lies("wb-anforderungsbuch-data"),au=ab&&ab.auftraege&&ab.auftraege[sheet.dataset.wahl],req=au&&(au.reqs||[]).find(x=>x.id===r.id);
+    const neu={id:`${abk}-${r.id}-${n}`,ebene:eb,reqs:[r.id],t:t,res:"open",spez:true,angelegt:new Date().toISOString(),
+      spec:[f.vor.value.trim()&&"Vorgehen: "+f.vor.value.trim(),f.erw.value.trim()&&"Erwartung: "+f.erw.value.trim()].filter(Boolean).join("\n")};
+    if(eb==="kom"&&f.art&&f.art.value)neu.art=f.art.value;
+    if(eb==="sys"&&f.env&&f.env.value.trim())neu.env=f.env.value.trim();
+    if(eb==="cl"&&req&&req.cl)neu.cl=req.cl;
+    d.tests.push(neu);d.updated=new Date().toISOString();
+    try{localStorage.setItem(TD,JSON.stringify(d))}catch(e){f.querySelector(".fehler").textContent="Speichern fehlgeschlagen: "+e.message;return}
+    const zurueck=lies(TD);if(!zurueck||!(zurueck.tests||[]).some(x=>x.id===neu.id)){f.querySelector(".fehler").textContent="Speichern ist ohne Lizenz gesperrt.";return}
+    if(window.WBVerlauf)try{WBVerlauf.eintrag("stand","Testfall spezifiziert: "+neu.id)}catch(e){}
+    offenFuer=null;hinweis(true);bauen();
+  }
+  function weg(id){
+    if(!confirm("Spezifizierten Testfall "+id+" löschen?"))return;
+    const d=lies(TD);if(!d||!Array.isArray(d.tests))return;
+    d.tests=d.tests.filter(x=>!(x.id===id&&x.spez));d.updated=new Date().toISOString();
+    try{if(d.tests.length)localStorage.setItem(TD,JSON.stringify(d));else localStorage.removeItem(TD)}catch(e){}
+    hinweis(true);bauen();
+  }
+  function hinweis(an){let h=document.getElementById("auHinweis");
+    if(!h){h=document.createElement("p");h.id="auHinweis";h.className="lede";h.setAttribute("role","status");document.getElementById("auKpi").before(h)}
+    h.innerHTML=an?'Gespeichert. Die Ebenen-Ansichten oben zeigen neue Testfälle nach dem <a href="#" onclick="location.reload();return false">Neuladen</a>.':"";}
+  sheet.addEventListener("click",e=>{
+    const n=e.target.closest("[data-neu]");if(n){offenFuer=offenFuer===n.dataset.neu?null:n.dataset.neu;bauen();
+      const f=sheet.querySelector(".au-form");if(f)f.t.focus();return}
+    const w=e.target.closest("[data-weg]");if(w){weg(w.dataset.weg);return}
+    if(e.target.closest("[data-abbruch]")){offenFuer=null;bauen()}
+  });
+  /* Lizenzlage kommt asynchron – danach einmal neu zeichnen, damit „+ Testfall“ erscheint. */
+  if(window.WBTor&&WBTor.lage&&!WBTor.lage()){const t=setInterval(()=>{if(WBTor.lage()){clearInterval(t);bauen()}},200);setTimeout(()=>clearInterval(t),15000)}
+  sheet.addEventListener("submit",e=>{const f=e.target.closest(".au-form");if(!f)return;e.preventDefault();anlegen(f)});
+  sheet.addEventListener("keydown",e=>{if(e.key==="Escape"&&e.target.closest(".au-form")){offenFuer=null;bauen()}});
   function bauen(){
+    darf=darfJetzt();
     const ab=NUR_BSP?null:lies("wb-anforderungsbuch-data"),au=(ab&&ab.auftraege)||{},ids=Object.keys(au);
     if(!ids.length){sheet.hidden=true;return}
     sheet.hidden=false;
@@ -7225,9 +7300,12 @@ if(window.WBTor&&WBTor.start)WBTor.start(function(){
         if(!passend.length){st='<span class="st bad">'+EBN[soll]+' fehlt</span>';if(K)K.lu++}
         else if(passend.some(t=>t.res==="fail"))st='<span class="st bad">fehlgeschlagen</span>';
         else if(passend.every(t=>t.res==="pass")){st='<span class="st ok">abgedeckt</span>';if(K)K.ok++}
+        else if(passend.every(t=>t.spez&&(!t.res||t.res==="open")))st='<span class="st spez">spezifiziert</span>';
         else st='<span class="st warn">offen</span>';
-        const tz=ts.map(t=>`<span class="tst" title="${esc(t.t||"")}${t.ebene!==soll?" – andere Ebene: "+esc(EBN[t.ebene]||t.ebene):""}"><i class="tdot f" style="--c:var(${t.res==="pass"?"--free":t.res==="fail"?"--red-ink":"--over"})"></i>${esc(t.id)}${t.art==="weakspot"?" · Weakspot":""}${t.ebene!==soll?" ("+esc(t.ebene)+")":""}</span>`).join("");
+        const tz=ts.map(t=>`<span class="tst${t.spez?" sz":""}" title="${esc(t.t||"")}${t.spez?" – spezifiziert, noch nicht ausgeführt":""}${t.ebene!==soll?" – andere Ebene: "+esc(EBN[t.ebene]||t.ebene):""}"><i class="tdot f" style="--c:var(${t.res==="pass"?"--free":t.res==="fail"?"--red-ink":"--over"})"></i>${esc(t.id)}${t.art==="weakspot"?" · Weakspot":""}${t.ebene!==soll?" ("+esc(t.ebene)+")":""}${t.spez&&darf?`<button type="button" data-weg="${esc(t.id)}" aria-label="Testfall ${esc(t.id)} löschen" title="Löschen">×</button>`:""}</span>`).join("")
+          +(soll&&darf?`<br><button type="button" class="neu" data-neu="${esc(r.id)}" aria-expanded="${offenFuer===r.id}">+ Testfall</button>`:"");
         body.push(`<tr><td class="eb" style="padding-left:${(r.ebene-1)*10+8}px">L${r.ebene}</td><td class="id">${esc(r.id)}</td><td class="tx">${esc(r.t||"")}${r.art==="betroffen"?' <span class="st warn">betroffen</span>':""}</td><td>${esc(r.release||"")}${r.cl?(r.release?"<br>":"")+"<span class=\"au-rel\">"+esc(r.cl)+(r.fn?" · "+esc(r.fn)+"()":"")+"</span>":""}</td><td>${tz||"–"}</td><td>${st}</td></tr>`);
+        if(offenFuer===r.id&&soll)body.push(formZeile(r,soll));
       };
       const lauf=r=>{zeig(r);kinder(r.id).forEach(lauf)};kinder(x.id).forEach(lauf);
     });
