@@ -7328,5 +7328,12 @@ if(window.WBTor&&WBTor.start)WBTor.start(function(){
 })();
 [['s-sys','swe6'],['s-clu','swe5'],['s-kom','swe4']].forEach(function(z){WBMarke.start({vor:'#'+z[0]+' > .wrap > .hero',schritt:function(){return z[1];}});});
 /* ═══ WBMarke-Ende */</script>
+<style>/* Design-Check 19.11.2026: Lizenzband nicht schwebend, sondern fest unter der Prozessmarke */
+#wbl-band.wbl-inline{position:relative!important;left:auto!important;bottom:auto!important;top:auto!important;transform:none!important;width:auto!important;margin:0 0 12px!important;z-index:1!important}
+</style>
+<script>(function(){function setzen(){var b=document.getElementById('wbl-band');if(!b)return;
+  var ms=[].slice.call(document.querySelectorAll('.wbm')).filter(function(m){var r=m.getBoundingClientRect();return r.width>0&&r.left>-10&&r.left<innerWidth;});
+  var m=ms[0];if(!m)return;if(b.previousElementSibling!==m){m.insertAdjacentElement('afterend',b);}b.classList.add('wbl-inline');}
+  setInterval(setzen,800);setTimeout(setzen,300);})();</script>
 </body>
 </html>
