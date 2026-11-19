@@ -7501,5 +7501,139 @@ if(window.WBTor&&WBTor.start)WBTor.start(function(){
   window.WBVerlauf = { eintrag:eintrag, lesen:lesen, werkzeug:werkzeug };
 })();
 /* ═══ WBVerlauf-Ende */</script>
+<script>/* ═══ WBSchnell-Block */
+/* Schnellnotiz (seit 19.11.2026).
+   Lasche am rechten Rand und Alt+M in jedem Werkzeug. Die Notiz landet im
+   gemeinsamen Eingang 'wb-schnellnotizen' (gleiche Herkunft, nur dieses Gerät).
+   Das Notizbuch (NoteOS) holt sie ab und legt sie als Notiz der Kategorie
+   „Schnellnotiz“ an, mit Werkzeug und aktivem Auftrag. */
+(function(){
+  if (window.WBSchnell) return;
+  var LS = 'wb-schnellnotizen', NOTIZBUCH = 'https://maikunverricht.github.io/NoteOS/';
+  var cfg = window.WBSchnellCfg || {};
+  function lies(k, d){ try { var v = JSON.parse(localStorage.getItem(k) || 'null'); return v == null ? d : v; } catch(e){ return d; } }
+  function eingang(){ var a = lies(LS, []); return Array.isArray(a) ? a : []; }
+  function werkzeug(){
+    if (window.WBVerlauf && WBVerlauf.werkzeug) return WBVerlauf.werkzeug;
+    return (document.title.split('·')[0] || '').trim() || 'Werkzeug';
+  }
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]; }); }
+
+  var css = ''
+    + '.wbs-knopf{position:fixed;right:0;top:' + (cfg.hoehe || 62) + '%;z-index:2147483000;width:30px;height:46px;border-radius:12px 0 0 12px;'
+    + 'display:grid;place-items:center;cursor:pointer;border:1px solid rgba(255,255,255,.16);border-right:none;background:rgba(16,22,31,.82);color:#F2B33D;'
+    + 'box-shadow:-6px 8px 22px -12px rgba(0,0,0,.7);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);padding:0 0 0 2px;transition:width .15s}'
+    + '.wbs-knopf:hover,.wbs-knopf[aria-expanded="true"]{width:38px}'
+    + '.wbs-knopf:hover{border-color:#F2B33D}.wbs-knopf:focus-visible{outline:2px solid #F2B33D;outline-offset:2px}'
+    + '.wbs-knopf svg{width:18px;height:18px}'
+    + '.wbs-knopf b{position:absolute;top:-7px;left:-7px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#F2B33D;color:#12171F;font:700 11px/18px "JetBrains Mono",ui-monospace,monospace}'
+    + '.wbs-feld{position:fixed;right:46px;top:' + (cfg.hoehe || 62) + '%;transform:translateY(-50%);z-index:2147483001;width:min(380px,calc(100vw - 62px));'
+    + 'border-radius:16px;border:1px solid rgba(255,255,255,.14);background:rgba(13,18,26,.96);color:#EDF0F3;padding:14px;'
+    + 'box-shadow:0 24px 60px -20px rgba(0,0,0,.8);font:14px/1.45 "Archivo","Helvetica Neue",Arial,sans-serif;-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}'
+    + '.wbs-feld h2{margin:0 0 8px;font-size:15px;font-weight:800;display:flex;align-items:center;gap:8px}'
+    + '.wbs-feld h2 span{flex:1}.wbs-feld h2 small{font:500 11px "JetBrains Mono",ui-monospace,monospace;color:#A7B1BC}'
+    + '.wbs-kontext{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;font-size:12px;color:#A7B1BC}'
+    + '.wbs-kontext span,.wbs-kontext label{border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:2px 9px;display:inline-flex;gap:5px;align-items:center}'
+    + '.wbs-feld textarea{width:100%;min-height:110px;resize:vertical;box-sizing:border-box;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.05);color:inherit;padding:9px 10px;font:inherit}'
+    + '.wbs-feld textarea:focus{outline:2px solid #F2B33D;outline-offset:1px}'
+    + '.wbs-zeile{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}'
+    + '.wbs-zeile .sp{flex:1}'
+    + '.wbs-feld button{min-height:30px;border-radius:999px;border:1px solid rgba(255,255,255,.2);background:transparent;color:inherit;padding:5px 14px;font:600 13px inherit;font-family:inherit;cursor:pointer}'
+    + '.wbs-feld button.voll{background:#F2B33D;border-color:#F2B33D;color:#12171F}'
+    + '.wbs-feld a{color:#63D9C4;font-size:12px}'
+    + '.wbs-hinweis{font-size:12px;color:#A7B1BC}'
+    + '.wbs-ok{position:fixed;right:46px;top:' + (cfg.hoehe || 62) + '%;transform:translateY(-50%);z-index:2147483001;padding:8px 14px;border-radius:999px;background:#F2B33D;color:#12171F;font:600 13px "Archivo",Arial,sans-serif;box-shadow:0 10px 26px -10px rgba(0,0,0,.6)}'
+    + 'html[data-theme="light"] .wbs-knopf{background:rgba(255,255,255,.85);border-color:rgba(17,28,44,.18);color:#8A5A00}'
+    + 'html[data-theme="light"] .wbs-feld{background:rgba(250,251,253,.97);color:#111923;border-color:rgba(17,28,44,.14)}'
+    + 'html[data-theme="light"] .wbs-feld h2 small,html[data-theme="light"] .wbs-kontext,html[data-theme="light"] .wbs-hinweis{color:#3F4A57}'
+    + 'html[data-theme="light"] .wbs-kontext span,html[data-theme="light"] .wbs-kontext label,html[data-theme="light"] .wbs-feld button{border-color:rgba(17,28,44,.2)}'
+    + 'html[data-theme="light"] .wbs-feld textarea{background:#fff;border-color:rgba(17,28,44,.2)}'
+    + 'html[data-theme="light"] .wbs-feld a{color:#0F6E5E}'
+    + '@media (prefers-color-scheme: light){html:not([data-theme]) .wbs-knopf{background:rgba(255,255,255,.85);color:#8A5A00}html:not([data-theme]) .wbs-feld{background:rgba(250,251,253,.97);color:#111923}}'
+    + '@media (max-width:480px){.wbs-hinweis{flex-basis:100%}}'
+    + '@media print{.wbs-knopf,.wbs-feld,.wbs-ok{display:none!important}}';
+
+  var STIFT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>';
+  var knopf, feld = null, vorher = null;
+
+  function zahl(){
+    if (!knopf) return;
+    var n = eingang().length, b = knopf.querySelector('b');
+    if (n) { if (!b) { b = document.createElement('b'); knopf.appendChild(b); } b.textContent = n; }
+    else if (b) b.remove();
+    knopf.setAttribute('aria-label', 'Schnellnotiz (Alt+M)' + (n ? ' – ' + n + ' warten auf das Notizbuch' : ''));
+  }
+
+  function zu(){
+    if (!feld) return; feld.remove(); feld = null; knopf.setAttribute('aria-expanded', 'false');
+    if (vorher && vorher.focus) try { vorher.focus(); } catch(e){}
+  }
+
+  function auf(){
+    if (feld) { feld.querySelector('textarea').focus(); return; }
+    vorher = document.activeElement;
+    var ak = lies('wb-aktiver-auftrag', null), n = eingang().length;
+    feld = document.createElement('div');
+    feld.className = 'wbs-feld'; feld.setAttribute('role', 'dialog'); feld.setAttribute('aria-label', 'Schnellnotiz');
+    feld.innerHTML = '<h2><span>Schnellnotiz</span><small>Alt+M</small></h2>'
+      + '<div class="wbs-kontext"><span>' + esc(werkzeug()) + '</span>'
+      + (ak && ak.id ? '<label><input type="checkbox" checked data-auftrag> ' + esc(ak.id) + (ak.titel ? ' – ' + esc(String(ak.titel).slice(0, 40)) : '') + '</label>' : '')
+      + '</div>'
+      + '<textarea aria-label="Notiz" placeholder="Was soll festgehalten werden? Erste Zeile wird der Titel."></textarea>'
+      + '<div class="wbs-zeile"><span class="wbs-hinweis">' + (n ? n + ' im Eingang · ' : '') + '<a href="' + NOTIZBUCH + '" target="_blank" rel="noopener">Notizbuch öffnen</a></span><span class="sp"></span>'
+      + '<button type="button" data-zu>Abbrechen</button><button type="button" class="voll" data-sichern title="Strg+Enter">Speichern</button></div>';
+    document.body.appendChild(feld);
+    knopf.setAttribute('aria-expanded', 'true');
+    var ta = feld.querySelector('textarea');
+    ta.focus();
+    feld.addEventListener('click', function(e){
+      if (e.target.closest('[data-zu]')) zu();
+      else if (e.target.closest('[data-sichern]')) sichern();
+    });
+    feld.addEventListener('keydown', function(e){
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); zu(); }
+      else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sichern(); }
+    });
+  }
+
+  function sichern(){
+    var ta = feld.querySelector('textarea'), text = ta.value.trim();
+    if (!text) { ta.focus(); return; }
+    var ak = lies('wb-aktiver-auftrag', null), mit = feld.querySelector('[data-auftrag]');
+    var e = { id:Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t:Date.now(), text:text.slice(0, 20000), w:werkzeug() };
+    if (ak && ak.id && mit && mit.checked) e.auftrag = { id:String(ak.id), titel:String(ak.titel || '') };
+    var a = eingang(); a.push(e);
+    try { localStorage.setItem(LS, JSON.stringify(a)); }
+    catch(err) { feld.querySelector('.wbs-hinweis').textContent = 'Speichern fehlgeschlagen – Browser-Speicher voll?'; return; }
+    try { var bc = new BroadcastChannel('werkbank'); bc.postMessage({ thema:'schnellnotiz', von:'schnell', zeit:Date.now() }); bc.close(); } catch(x){}
+    if (window.WBVerlauf) try { WBVerlauf.eintrag('notiz', 'Schnellnotiz: ' + text.split(/\r?\n/)[0].slice(0, 80)); } catch(x){}
+    try { window.dispatchEvent(new Event('wb-schnellnotiz')); } catch(x){}
+    zu(); zahl();
+    var ok = document.createElement('div'); ok.className = 'wbs-ok'; ok.setAttribute('role', 'status');
+    ok.textContent = 'Notiz gespeichert – landet im Notizbuch';
+    document.body.appendChild(ok); setTimeout(function(){ ok.remove(); }, 2200);
+  }
+
+  function start(){
+    var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
+    knopf = document.createElement('button');
+    knopf.type = 'button'; knopf.className = 'wbs-knopf'; knopf.innerHTML = STIFT;
+    knopf.title = 'Schnellnotiz (Alt+M)'; knopf.setAttribute('aria-haspopup', 'dialog'); knopf.setAttribute('aria-expanded', 'false');
+    knopf.addEventListener('click', function(){ feld ? zu() : auf(); });
+    document.body.appendChild(knopf);
+    zahl();
+    window.addEventListener('keydown', function(e){
+      if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.code === 'KeyM') { e.preventDefault(); e.stopImmediatePropagation(); auf(); }
+    }, true);
+    document.addEventListener('pointerdown', function(e){
+      if (feld && !feld.contains(e.target) && !knopf.contains(e.target) && !feld.querySelector('textarea').value.trim()) zu();
+    }, true);
+    addEventListener('storage', function(e){ if (e.key === LS || e.key === null) zahl(); });
+    try { var bc = new BroadcastChannel('werkbank'); bc.onmessage = function(m){ if (m.data && (m.data.thema === 'schnellnotiz' || m.data.thema === 'noteos')) zahl(); }; } catch(x){}
+  }
+  if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+  window.WBSchnell = { auf:auf, eingang:eingang };
+})();
+/* ═══ WBSchnell-Ende */</script>
 </body>
 </html>
