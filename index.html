@@ -657,7 +657,7 @@ dialog.tf::backdrop{background:rgba(0,0,0,.45)}
             </div>
           </div>
           <div class="cywrap">
-            <div id="cy" aria-label="Wirkkette der Cluster"></div>
+            <div id="cy" role="img" aria-label="Wirkkette der Cluster"></div>
             <aside class="dpanel" id="dpanel" hidden aria-label="Details"><button class="pill icon-btn dclose" data-close="1" type="button" aria-label="Details schließen">✕</button><div id="detail"></div></aside>
           </div>
           <div class="legend">
@@ -706,7 +706,7 @@ dialog.tf::backdrop{background:rgba(0,0,0,.45)}
           </div>
           <div class="chips cpick" id="cluPick" role="group" aria-label="Cluster wählen"></div>
           <div class="cywrap">
-            <div id="cy2" aria-label="Komponenten im Cluster"></div>
+            <div id="cy2" role="img" aria-label="Komponenten im Cluster"></div>
             <aside class="dpanel" id="dpanel2" hidden aria-label="Details"><button class="pill icon-btn dclose" data-close="2" type="button" aria-label="Details schließen">✕</button><div id="detail2"></div></aside>
           </div>
           <div class="legend">
@@ -6362,7 +6362,7 @@ function renderLevels(){
   document.querySelectorAll(".lvls").forEach(el=>{const me=+el.dataset.i;
     el.innerHTML=`<div class="band">
       <div class="plate">
-        <button type="button" class="pl-main" data-pick aria-haspopup="dialog" aria-expanded="false" aria-label="Auswahl ändern: ${esc(title)}">
+        <button type="button" class="pl-main" data-pick aria-haspopup="dialog" aria-expanded="false" title="Auswahl ändern: ${esc(title)}">
           <span class="t-idx">${esc(eye)}</span><span class="pl-id"><span class="pl-tx">${esc(title)}</span>${CHEVD}</span><span class="pl-sub">${esc(sub)}</span></button>
         <div class="pl-step" title="Geänderte Requirements der Reihe nach"><button type="button" data-step="-1" aria-label="Vorheriges geändertes Requirement">‹</button><span>${posT}</span><button type="button" data-step="1" aria-label="Nächstes geändertes Requirement">›</button></div>
       </div>
@@ -7052,7 +7052,7 @@ function setupFold(){
 }
 function foldAllLabels(){
   document.querySelectorAll(".foldall").forEach(b=>{const all=[...b.closest(".slide").querySelectorAll("[data-fold]")];if(!all.length)return;
-    const zu=all.some(x=>!x.classList.contains("folded"));b.innerHTML=`${CHEV}<span>${zu?"Alle einklappen":"Alle ausklappen"}</span>`;b.classList.toggle("zu",!zu);b.setAttribute("aria-label",zu?"Alle Kästen dieser Ansicht einklappen":"Alle Kästen dieser Ansicht ausklappen")});
+    const zu=all.some(x=>!x.classList.contains("folded"));b.innerHTML=`${CHEV}<span>${zu?"Alle einklappen":"Alle ausklappen"}</span>`;b.classList.toggle("zu",!zu);b.setAttribute("data-x",zu?"Alle Kästen dieser Ansicht einklappen":"Alle Kästen dieser Ansicht ausklappen")});
 }
 document.addEventListener("click",e=>{
   const fb=e.target.closest(".fold");if(fb){const sh=fb.closest("[data-fold]");applyFold(sh,!sh.classList.contains("folded"));return}
@@ -7309,6 +7309,7 @@ if(window.WBTor&&WBTor.start)WBTor.start(function(){
       if (ak && ak.id && kp && Array.isArray(kp.auftraege)) au = kp.auftraege.filter(function(a){ return a.id === ak.id; })[0] || null;
       if (au && s.kp && au.schritte && au.schritte[s.kp]) st = au.schritte[s.kp].status || '';
       var w = WEITER[k] && S[WEITER[k]], f = FARBE[st];
+      el.setAttribute('aria-label', 'Prozessschritt ' + marke(s));
       var key = [k, ak && ak.id, ak && ak.titel, st, w && w.name].join('|'); if (key === letzt) return; letzt = key;
       var href = w && w.id && REPO[w.id] ? '../' + REPO[w.id] + '/' + (w.id === 'anforderungsbuch' && w.tab ? '#' + w.tab : '') : '';
       el.innerHTML =
