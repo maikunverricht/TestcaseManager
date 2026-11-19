@@ -7351,5 +7351,51 @@ if(window.WBTor&&WBTor.start)WBTor.start(function(){
    var k=a.querySelector(':scope > .dz-knopf');if(!k){k=document.createElement('button');k.type='button';k.className='dz-knopf';k.addEventListener('click',function(){setzen(!zu());});a.insertBefore(k,a.firstChild);}
    m.classList.toggle('dz',z);k.textContent=z?'◂ Details':'▸';k.setAttribute('aria-expanded',z?'false':'true');k.setAttribute('aria-label',z?'Detailspalte ausklappen':'Detailspalte einklappen');k.title=k.getAttribute('aria-label');});}
  anwenden();setTimeout(anwenden,800);})();</script>
+<script>/* ═══ WBUmschlag-Block */
+/* Hell/Dunkel radial vom Knopf aus (seit 19.11.2026).
+   Fängt den Klick auf den Theme-Knopf ab und löst ihn in einer View Transition
+   erneut aus. Das neue Bild wächst als Kreis vom Knopf über die ganze Seite.
+   Ohne View-Transition-Unterstützung oder bei „Bewegung reduzieren“ sofort. */
+(function(){
+  if (window.__wbUmschlag) return; window.__wbUmschlag = 1;
+  var KNOPF = '#themeBtn,#bTheme,[data-more-theme],[data-wb-theme]';
+  var DAUER = 650;
+  var root = document.documentElement, aktiv = false;
+  var st = document.createElement('style');
+  st.textContent = '::view-transition-old(root),::view-transition-new(root){animation:none;mix-blend-mode:normal}'
+    + '::view-transition-old(root){z-index:1}::view-transition-new(root){z-index:2}';
+  document.head.appendChild(st);
+  function themaAenderung(vor){
+    return new Promise(function(ok){
+      if (root.getAttribute('data-theme') !== vor) return ok();
+      var mo = new MutationObserver(function(){ mo.disconnect(); ok(); });
+      mo.observe(root, { attributes:true, attributeFilter:['data-theme'] });
+      setTimeout(function(){ mo.disconnect(); ok(); }, 300);
+    });
+  }
+  window.addEventListener('click', function(e){
+    if (aktiv || !document.startViewTransition) return;
+    var b = e.target && e.target.closest && e.target.closest(KNOPF);
+    if (!b) return;
+    try { if (matchMedia('(prefers-reduced-motion: reduce)').matches) return; } catch(_){}
+    e.stopImmediatePropagation(); e.preventDefault();
+    var r = b.getBoundingClientRect();
+    var x = e.detail ? e.clientX : r.left + r.width/2, y = e.detail ? e.clientY : r.top + r.height/2;
+    var rad = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+    var vor = root.getAttribute('data-theme');
+    var vt;
+    try {
+      vt = document.startViewTransition(function(){
+        aktiv = true; try { b.click(); } finally { aktiv = false; }
+        return themaAenderung(vor);
+      });
+    } catch(_) { aktiv = true; try { b.click(); } finally { aktiv = false; } return; }
+    vt.ready.then(function(){
+      root.animate({ clipPath:['circle(0px at '+x+'px '+y+'px)','circle('+rad+'px at '+x+'px '+y+'px)'] },
+        { duration:DAUER, easing:'cubic-bezier(.4,0,.2,1)', pseudoElement:'::view-transition-new(root)' });
+    }).catch(function(){});
+  }, true);
+})();
+/* ═══ WBUmschlag-Ende */</script>
 </body>
 </html>
