@@ -7397,5 +7397,109 @@ if(window.WBTor&&WBTor.start)WBTor.start(function(){
   }, true);
 })();
 /* ═══ WBUmschlag-Ende */</script>
+<script>/* ═══ WBVerlauf-Block */
+/* Verlauf über alle Werkzeuge (seit 19.11.2026).
+   Schreibt in den gemeinsamen Speicher 'wb-verlauf' (gleiche Herkunft, nur dieses Gerät):
+   geöffnet, Datei geladen, exportiert, Stand aktualisiert, aktiver Auftrag gewechselt.
+   Eintrag: { t:Zeit, w:Werkzeug, a:Art, x:Text, n:Anzahl, k:Schlüssel }.
+   Eigene Einträge: WBVerlauf.eintrag('art', 'Text'). Angezeigt im Kontor unter /verlauf/. */
+(function(){
+  if (window.WBVerlauf) return;
+  var LS = 'wb-verlauf', MAX = 2000, TAGE = 180, ZUSAMMEN = 15*60e3, OFFEN_PAUSE = 30*60e3;
+  var NAMEN = { anforderungsbuch:'Anforderungsbuch', auswertung:'Auswertung', codecompare:'CodeCompare',
+    funktionsentwurf:'Funktionsentwurf', kapazitaetenplaner:'KapazitätenPlaner', schaltplan:'Schaltplan',
+    testcasemanager:'TestcaseManager', kontor:'Kontor', belegungsplan:'Belegungsplan', contribution:'Contribution Dialog' };
+  var STAENDE = {
+    'wb-anforderungsbuch-data':'Anforderungsstand', 'wb-schaltplan-data':'Schaltplan-Stand',
+    'wb-funktionsentwurf-stand':'Funktionsentwurf-Stand', 'wb-codecompare-stand':'Vergleichsstand',
+    'wb-testcasemanager-data':'Teststand', 'wb-ausw-stand':'Auswertungsstand',
+    'wb-kapazitaetenplaner-sprint':'Sprint', 'wb-kapazitaetenplaner-auftraege':'Planung',
+    'wb-kapa-bc':'BC-Fortschritt', 'wb-contribution-stand':'Gesprächsstand'
+  };
+  var teile = location.pathname.toLowerCase().split('/').filter(Boolean);
+  var werkzeug = '';
+  for (var i = teile.length - 1; i >= 0 && !werkzeug; i--) werkzeug = NAMEN[teile[i].replace(/\.html?$/, '')] || '';
+  if (!werkzeug) werkzeug = (document.title.split('·')[0] || '').trim() || 'Werkzeug';
+  if (werkzeug === 'KapazitätenPlaner' && /variante=zeit/.test(location.search)) werkzeug = 'Zeiterfassung';
+
+  var roh = Storage.prototype.setItem, lsGet = Storage.prototype.getItem;
+  function lesen(){
+    try { var a = JSON.parse(lsGet.call(localStorage, LS) || '[]'); return Array.isArray(a) ? a : []; } catch(e){ return []; }
+  }
+  function schreiben(a){
+    try { roh.call(localStorage, LS, JSON.stringify(a)); } catch(e){
+      try { roh.call(localStorage, LS, JSON.stringify(a.slice(-Math.floor(MAX/2)))); } catch(e2){}
+    }
+    try { var bc = new BroadcastChannel('werkbank'); bc.postMessage({ thema:'verlauf', von:'verlauf', zeit:Date.now() }); bc.close(); } catch(e){}
+  }
+  function eintrag(art, text, opt){
+    opt = opt || {};
+    var jetzt = Date.now(), a = lesen().filter(function(e){ return e && e.t >= jetzt - TAGE*864e5; });
+    text = String(text).slice(0, 300);
+    var letzt = null;
+    for (var j = a.length - 1; j >= 0; j--) if (a[j].w === werkzeug && a[j].a === art && (opt.k ? a[j].k === opt.k : a[j].x === text)) { letzt = a[j]; break; }
+    /* Gleiches kurz hintereinander zählt hoch statt neu anzulegen. */
+    var fenster = opt.fenster != null ? opt.fenster : 4000;
+    if (letzt && jetzt - letzt.t < fenster) { letzt.t = jetzt; letzt.x = text; if (opt.fenster != null) letzt.n = (letzt.n || 1) + 1; }
+    else {
+      var e = { t:jetzt, w:werkzeug, a:art, x:text };
+      if (opt.k) e.k = opt.k;
+      a.push(e);
+    }
+    if (a.length > MAX) a = a.slice(a.length - MAX);
+    schreiben(a);
+  }
+  function namen(files){
+    var n = []; for (var i = 0; i < files.length && i < 5; i++) n.push(files[i].name);
+    return n.join(', ') + (files.length > 5 ? ' und ' + (files.length - 5) + ' weitere' : '');
+  }
+
+  /* Geöffnet: einmal je Sitzung, nach 30 Minuten Pause erneut. */
+  (function(){
+    var a = lesen(), jetzt = Date.now();
+    for (var j = a.length - 1; j >= 0; j--) if (a[j].w === werkzeug && a[j].a === 'geoeffnet') { if (jetzt - a[j].t < OFFEN_PAUSE) return; break; }
+    eintrag('geoeffnet', werkzeug + ' geöffnet', { fenster:0 });
+  })();
+
+  /* Dateien geladen: Auswahl und Ablegen. */
+  document.addEventListener('change', function(e){
+    var t = e.target;
+    if (t && t.type === 'file' && t.files && t.files.length) eintrag('import', 'Datei geladen: ' + namen(t.files));
+  }, true);
+  document.addEventListener('drop', function(e){
+    var f = e.dataTransfer && e.dataTransfer.files;
+    if (f && f.length) eintrag('import', 'Datei geladen: ' + namen(f));
+  }, true);
+
+  /* Exporte: Downloads über einen Link mit download-Attribut. */
+  function exportiert(aEl){
+    if (aEl && aEl.hasAttribute && aEl.hasAttribute('download')) eintrag('export', 'Exportiert: ' + (aEl.getAttribute('download') || 'Datei'));
+  }
+  var klick = HTMLAnchorElement.prototype.click;
+  HTMLAnchorElement.prototype.click = function(){ if (!this.isConnected) exportiert(this); return klick.apply(this, arguments); };
+  document.addEventListener('click', function(e){ var a = e.target && e.target.closest && e.target.closest('a[download]'); if (a) exportiert(a); }, true);
+
+  /* Stände (Lesekopien) und aktiver Auftrag. */
+  /* Schreiben beim Start (Lesekopie neu berechnet) ist keine Änderung – erst danach zählen. */
+  var start = Date.now(), warten = {};
+  Storage.prototype.setItem = function(k, v){
+    var alt = null;
+    if (this === localStorage && (STAENDE[k] || k === 'wb-aktiver-auftrag')) { try { alt = lsGet.call(this, k); } catch(e){} }
+    var r = roh.apply(this, arguments);
+    if (this === localStorage && alt !== String(v)) {
+      if (STAENDE[k] && Date.now() - start > 6000) {
+        clearTimeout(warten[k]);
+        warten[k] = setTimeout(function(){ eintrag('stand', STAENDE[k] + ' aktualisiert', { k:k, fenster:ZUSAMMEN }); }, 3000);
+      } else if (k === 'wb-aktiver-auftrag') {
+        var o = null, vo = null; try { o = JSON.parse(v); vo = JSON.parse(alt || 'null'); } catch(e){}
+        if (o && o.id && !(vo && vo.id === o.id)) eintrag('auftrag', 'Aktiver Auftrag: ' + o.id + (o.titel ? ' – ' + o.titel : ''), { k:k });
+      }
+    }
+    return r;
+  };
+
+  window.WBVerlauf = { eintrag:eintrag, lesen:lesen, werkzeug:werkzeug };
+})();
+/* ═══ WBVerlauf-Ende */</script>
 </body>
 </html>
