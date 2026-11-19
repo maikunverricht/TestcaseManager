@@ -7224,5 +7224,101 @@ if(window.WBTor&&WBTor.start)WBTor.start(function(){
   window.tcmEbene=function(k){k=typeof k==="string"?SLIDE_HASH.indexOf(k):+k;if(!(k>=0&&k<4))return;try{localStorage.setItem(SLIDE_LS,String(k))}catch(e){}zuSlide(k,false);Dock.setzen(k,false,true);Dock.aufbauen()};
 })();
 </script>
+<script>/* ═══ WBMarke-Block */
+/* WBMarke · Prozessmarke für die Produktiv-Werkzeuge (seit 19.11.2026, Design-Check Maßnahme 1).
+   Eine schmale Kopfzeile: welcher Schritt im V, welches Issue aktiv ist (wb-aktiver-auftrag),
+   Status des Schritts aus der Lesekopie des KapazitätenPlaners, Link zum nächsten Schritt.
+   Nummern und Namen wie im Kontor-V. Liest nur, schreibt nur die Reiter-Vorwahl des Ziels.
+   Aufruf: WBMarke.start({ werkzeug:'schaltplan', ziel:'main', schritt:function(){ return '2'; } }) */
+(function(){
+  'use strict';
+  var S = {
+    kp:   { nr:'0', name:'Einplanen',            swe:'',      wz:'KapazitätenPlaner', kp:'EIN' },
+    '1':  { nr:'①', name:'Systemanforderungen',  swe:'SWE.1', wz:'Anforderungsbuch',  kp:'SWE.1', id:'anforderungsbuch', tab:'auftraege/system' },
+    '2':  { nr:'②', name:'Wirkkettenanalyse',    swe:'SWE.2', wz:'Schaltplan',        kp:'SWE.2', id:'schaltplan', tab:'arch' },
+    '3':  { nr:'③', name:'SW-Anforderungen',     swe:'SWE.1', wz:'Anforderungsbuch',  kp:'SWE.1', id:'anforderungsbuch', tab:'auftraege/software' },
+    '4':  { nr:'④', name:'Funktionsebene',       swe:'SWE.2', wz:'Schaltplan',        kp:'SWE.2', id:'schaltplan', tab:'fn' },
+    '5':  { nr:'⑤', name:'Feinentwurf',          swe:'SWE.3', wz:'Funktionsentwurf',  kp:'SWE.3', id:'funktionsentwurf' },
+    '5r': { nr:'⑤', name:'Review Funktionsentwurf', swe:'SWE.3', wz:'CodeCompare',    kp:'SWE.3', id:'codecompare' },
+    swe4: { nr:'',  name:'Unit-/Weakspottest',   swe:'SWE.4', wz:'TestcaseManager',   kp:'SWE.4', id:'testcasemanager', tab:'komponente' },
+    swe5: { nr:'',  name:'Integrationstest',     swe:'SWE.5', wz:'TestcaseManager',   kp:'SWE.5', id:'testcasemanager', tab:'cluster' },
+    swe6: { nr:'',  name:'Qualifikation',        swe:'SWE.6', wz:'TestcaseManager',   kp:'SWE.6', id:'testcasemanager', tab:'system' },
+    abs:  { nr:'',  name:'Abschluss',            swe:'',      wz:'KapazitätenPlaner', kp:'ABS', id:'kapazitaetenplaner' },
+    ist:  { nr:'',  name:'Projektführung · Ist', swe:'',      wz:'Auswertung' }
+  };
+  var WEITER = { kp:'1', '1':'2', '2':'3', '3':'4', '4':'5', '5':'5r', '5r':'swe4', swe4:'swe5', swe5:'swe6', swe6:'abs' };
+  var REPO = { anforderungsbuch:'Anforderungsbuch', schaltplan:'Schaltplan', funktionsentwurf:'Funktionsentwurf', codecompare:'CodeCompare',
+               testcasemanager:'TestcaseManager', kapazitaetenplaner:'KapazitaetenPlaner' };
+  var FARBE = { closed:['#2FA894','erledigt'], started:['#E0A21F','in Arbeit'], blocked:['#D2484F','blockiert'], new:['#8A94A3','offen'] };
+  function lies(k){ try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]; }); }
+  function marke(s){ return (s.nr ? s.nr + ' ' : '') + s.name + (s.swe ? ' · ' + s.swe : ''); }
+
+  var CSS = '.wbm{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 14px;margin:0 0 10px;font-size:13px;line-height:1.35;'
+    + 'border:1px solid var(--line-strong,rgba(128,128,128,.28));border-radius:12px;background:var(--surface,rgba(128,128,128,.06));color:var(--text,inherit)}'
+    + '.wbm b{font-weight:800}.wbm .wbm-s{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}'
+    + '.wbm .wbm-d{width:9px;height:9px;border-radius:50%;flex-shrink:0}'
+    + '.wbm .wbm-i{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-2,inherit)}'
+    + '.wbm .wbm-i code{font-family:var(--mono,ui-monospace,monospace);font-size:12px;color:var(--text,inherit);font-weight:700}'
+    + '.wbm .wbm-k{color:var(--text-2,inherit)}'
+    + '.wbm a{color:inherit;text-decoration:none;border:1px solid var(--line-strong,rgba(128,128,128,.35));border-radius:999px;padding:3px 10px;white-space:nowrap;font-weight:600}'
+    + '.wbm a:hover,.wbm a:focus-visible{border-color:var(--amber,#E0A21F)}'
+    + '.wbm.fix{position:relative;margin:8px 12px 0}'
+    + '@media print{.wbm{display:none}}';
+
+  function oeffnen(z, e){
+    if (!z.id) return;
+    /* Im Kontor: der Kontor öffnet das Werkzeug samt Reiter. Allein: Reiter vormerken und hinwechseln. */
+    if (window.parent && window.parent !== window) {
+      try { window.parent.postMessage({ typ:'wb-oeffnen', id:z.id, tab:z.tab || '' }, location.origin); if (e) e.preventDefault(); return; } catch (x) {}
+    }
+    try {
+      if (z.id === 'schaltplan' && z.tab) localStorage.setItem('ap-tab', z.tab);
+      if (z.id === 'testcasemanager' && z.tab) localStorage.setItem('wb-wirkkette-ebene', String(['system','cluster','komponente'].indexOf(z.tab)));
+    } catch (x) {}
+  }
+
+  function start(o){
+    o = o || {};
+    if (!document.getElementById('wbm-css')) { var st = document.createElement('style'); st.id = 'wbm-css'; st.textContent = CSS; document.head.appendChild(st); }
+    var el = document.createElement('div'); el.className = 'wbm' + (o.fix ? ' fix' : ''); el.setAttribute('role', 'navigation'); el.setAttribute('aria-label', 'Prozessschritt und aktives Issue');
+    var vor = o.vor ? document.querySelector(o.vor) : null; /* vor: vor diesem Element einsetzen (Seiten mit fester Kopfzeile) */
+    var ziel = vor ? vor.parentElement : (typeof o.ziel === 'string' ? document.querySelector(o.ziel) : o.ziel);
+    /* Ziel noch nicht da (React baut spaeter): kurz nachfragen */
+    if (!ziel) { o._n = (o._n || 0) + 1; if (o._n < 40) setTimeout(function(){ start(o); }, 250); return null; }
+    if (ziel.querySelector('.wbm')) return null;
+    ziel.insertBefore(el, vor || ziel.firstChild);
+    /* feste Kopfzeile des Werkzeugs: nicht darunter verschwinden */
+    function luft(){ var h = document.querySelector('header.nav'); if (!h || window.scrollY > 0) return;
+      var ps = getComputedStyle(h).position; if (ps !== 'fixed' && ps !== 'sticky' && ps !== 'absolute') return;
+      var hr = h.getBoundingClientRect(), er = el.getBoundingClientRect(), mt = parseFloat(el.style.marginTop) || 0;
+      if (er.top - mt < hr.bottom + 6) el.style.marginTop = Math.ceil(hr.bottom + 8 - (er.top - mt)) + 'px'; }
+    setTimeout(luft, 50); setTimeout(luft, 600);
+    var letzt = '';
+    function zeichnen(){
+      var k = ''; try { k = o.schritt ? o.schritt() : (o.werkzeug || ''); } catch (e) {}
+      var s = S[k]; if (!s) { el.hidden = true; return; } el.hidden = false;
+      var ak = lies('wb-aktiver-auftrag'), kp = lies('wb-kapazitaetenplaner-auftraege'), st = '', au = null;
+      if (ak && ak.id && kp && Array.isArray(kp.auftraege)) au = kp.auftraege.filter(function(a){ return a.id === ak.id; })[0] || null;
+      if (au && s.kp && au.schritte && au.schritte[s.kp]) st = au.schritte[s.kp].status || '';
+      var w = WEITER[k] && S[WEITER[k]], f = FARBE[st];
+      var key = [k, ak && ak.id, ak && ak.titel, st, w && w.name].join('|'); if (key === letzt) return; letzt = key;
+      var href = w && w.id && REPO[w.id] ? '../' + REPO[w.id] + '/' + (w.id === 'anforderungsbuch' && w.tab ? '#' + w.tab : '') : '';
+      el.innerHTML =
+        '<span class="wbm-s"' + (f ? ' title="Schritt ' + esc(f[1]) + ' (KapazitätenPlaner)"' : '') + '><span class="wbm-d" style="background:' + (f ? f[0] : 'transparent') + ';' + (f ? '' : 'border:1px solid currentColor;opacity:.5') + '"></span><b>' + esc(marke(s)) + '</b></span>'
+        + '<span class="wbm-i">' + (ak && ak.id ? '<code>' + esc(ak.id) + '</code> ' + esc(ak.titel || '') + (f ? ' · ' + esc(f[1]) : '') : '<span class="wbm-k">kein aktives Issue – im Kontor oder KapazitätenPlaner wählen</span>') + '</span>'
+        + (w ? (href ? '<a href="' + esc(href) + '" data-wbm-weiter="' + esc(WEITER[k]) + '">weiter: ' + esc(marke(w)) + ' →</a>' : '<span class="wbm-k">weiter: ' + esc(marke(w)) + '</span>') : '');
+      var a = el.querySelector('a[data-wbm-weiter]'); if (a) a.addEventListener('click', function(e){ oeffnen(w, e); });
+    }
+    zeichnen();
+    window.addEventListener('storage', zeichnen);
+    window.addEventListener('hashchange', zeichnen);
+    setInterval(zeichnen, 1200); /* Reiterwechsel ohne eigenes Ereignis (Schaltplan, TestcaseManager) */
+    return { neu: zeichnen, el: el };
+  }
+  window.WBMarke = { start: start, schritte: S };
+})();
+[['s-sys','swe6'],['s-clu','swe5'],['s-kom','swe4']].forEach(function(z){WBMarke.start({vor:'#'+z[0]+' > .wrap > .hero',schritt:function(){return z[1];}});});
+/* ═══ WBMarke-Ende */</script>
 </body>
 </html>
