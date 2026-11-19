@@ -22,6 +22,15 @@ button{min-width:24px}
 
 /* Design-Check 19.11.2026: Akzentfarben als Text im hellen Modus dunkler */
 html[data-theme="light"]{--amber-text:#8A5A00;--teal-text:#0F6E5E}
+
+/* Design-Check 19.11.2026: Detailspalte einklappbar */
+.main.dz{grid-template-columns:minmax(0,1fr) 40px}
+.main.dz>.eval>*:not(.dz-knopf){display:none!important}
+.main.dz>.eval{padding:0!important;min-height:200px;overflow:hidden}
+.eval{position:relative}
+.dz-knopf{position:absolute;top:8px;left:-12px;z-index:3;width:24px;height:48px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface,#fff);color:var(--text);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;padding:0}
+.main.dz .dz-knopf{position:static;width:100%;height:auto;min-height:200px;border:0;border-radius:0;background:transparent;writing-mode:vertical-rl;font-size:12px;font-weight:700;letter-spacing:.06em;gap:6px}
+@media (max-width:1060px){.dz-knopf{display:none!important}.main.dz{grid-template-columns:minmax(0,1fr)}.main.dz>.eval>*{display:revert!important}}
 </style>
 <style>
 /* Layout: Werkbank-Auftritt wie im Schaltplan — Glasleiste oben, kompakte Kopfzeile, Auswahlkarte,
@@ -7335,5 +7344,12 @@ if(window.WBTor&&WBTor.start)WBTor.start(function(){
   var ms=[].slice.call(document.querySelectorAll('.wbm')).filter(function(m){var r=m.getBoundingClientRect();return r.width>0&&r.left>-10&&r.left<innerWidth;});
   var m=ms[0];if(!m)return;if(b.previousElementSibling!==m){m.insertAdjacentElement('afterend',b);}b.classList.add('wbl-inline');}
   setInterval(setzen,800);setTimeout(setzen,300);})();</script>
+<script>/* Design-Check 19.11.2026: Detailspalte ein-/ausklappen, Zustand gemerkt, Graph passt sich an */
+(function(){var K='tcm-details-zu';function zu(){try{return localStorage.getItem(K)==='1';}catch(e){return false;}}
+ function setzen(v){try{localStorage.setItem(K,v?'1':'0');}catch(e){}anwenden();setTimeout(function(){window.dispatchEvent(new Event('resize'));},60);}
+ function anwenden(){var z=zu();document.querySelectorAll('.slide .main').forEach(function(m){var a=m.querySelector(':scope > .eval');if(!a)return;
+   var k=a.querySelector(':scope > .dz-knopf');if(!k){k=document.createElement('button');k.type='button';k.className='dz-knopf';k.addEventListener('click',function(){setzen(!zu());});a.insertBefore(k,a.firstChild);}
+   m.classList.toggle('dz',z);k.textContent=z?'◂ Details':'▸';k.setAttribute('aria-expanded',z?'false':'true');k.setAttribute('aria-label',z?'Detailspalte ausklappen':'Detailspalte einklappen');k.title=k.getAttribute('aria-label');});}
+ anwenden();setTimeout(anwenden,800);})();</script>
 </body>
 </html>
