@@ -7647,14 +7647,19 @@ if(window.WBTor&&WBTor.start)WBTor.start(function(){
     if (vorher && vorher.focus) try { vorher.focus(); } catch(e){}
   }
 
-  function auf(){
-    if (feld) { feld.querySelector('textarea').focus(); return; }
+  /* Seit 20.11.2026: Im Kontor laufen die Werkzeuge als Rahmen. Dort zeigt nur das
+     Kontor die Lasche; Alt+M im Werkzeug öffnet sie im Kontor, mit dem Werkzeug als
+     Herkunft. Die Lasche des Kontors nimmt das gerade geöffnete Werkzeug (WBSchnellKontext). */
+  var fuerW = null;
+  function auf(opt){
+    fuerW = (opt && opt.w) || (typeof window.WBSchnellKontext === 'function' && window.WBSchnellKontext()) || null;
+    if (feld) { feld.querySelector('.wbs-kontext span').textContent = fuerW || werkzeug(); feld.querySelector('textarea').focus(); return; }
     vorher = document.activeElement;
     var ak = lies('wb-aktiver-auftrag', null), n = eingang().length;
     feld = document.createElement('div');
     feld.className = 'wbs-feld'; feld.setAttribute('role', 'dialog'); feld.setAttribute('aria-label', 'Schnellnotiz');
     feld.innerHTML = '<h2><span>Schnellnotiz</span><small>Alt+M</small></h2>'
-      + '<div class="wbs-kontext"><span>' + esc(werkzeug()) + '</span>'
+      + '<div class="wbs-kontext"><span>' + esc(fuerW || werkzeug()) + '</span>'
       + (ak && ak.id ? '<label><input type="checkbox" checked data-auftrag> ' + esc(ak.id) + (ak.titel ? ' – ' + esc(String(ak.titel).slice(0, 40)) : '') + '</label>' : '')
       + '</div>'
       + '<textarea aria-label="Notiz" placeholder="Was soll festgehalten werden? Erste Zeile wird der Titel."></textarea>'
@@ -7678,7 +7683,7 @@ if(window.WBTor&&WBTor.start)WBTor.start(function(){
     var ta = feld.querySelector('textarea'), text = ta.value.trim();
     if (!text) { ta.focus(); return; }
     var ak = lies('wb-aktiver-auftrag', null), mit = feld.querySelector('[data-auftrag]');
-    var e = { id:Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t:Date.now(), text:text.slice(0, 20000), w:werkzeug() };
+    var e = { id:Date.now().toString(36) + Math.random().toString(36).slice(2, 6), t:Date.now(), text:text.slice(0, 20000), w:fuerW || werkzeug() };
     if (ak && ak.id && mit && mit.checked) e.auftrag = { id:String(ak.id), titel:String(ak.titel || '') };
     var a = eingang(); a.push(e);
     try { localStorage.setItem(LS, JSON.stringify(a)); }
@@ -7708,6 +7713,15 @@ if(window.WBTor&&WBTor.start)WBTor.start(function(){
     }, true);
     addEventListener('storage', function(e){ if (e.key === LS || e.key === null) zahl(); });
     try { var bc = new BroadcastChannel('werkbank'); bc.onmessage = function(m){ if (m.data && (m.data.thema === 'schnellnotiz' || m.data.thema === 'noteos')) zahl(); }; } catch(x){}
+  }
+  var eltern = null;
+  try { if (window.parent && window.parent !== window && window.parent.WBSchnell && window.parent.document) eltern = window.parent.WBSchnell; } catch(e){}
+  if (eltern) {
+    window.addEventListener('keydown', function(e){
+      if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.code === 'KeyM') { e.preventDefault(); e.stopImmediatePropagation(); try { eltern.auf({ w:werkzeug() }); } catch(x){} }
+    }, true);
+    window.WBSchnell = { auf:function(o){ return eltern.auf(o || { w:werkzeug() }); }, eingang:eingang, imRahmen:true };
+    return;
   }
   if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
   window.WBSchnell = { auf:auf, eingang:eingang };
